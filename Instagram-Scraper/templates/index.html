@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+
+{% block title %}Instagram Knowledge Base{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 text-center">
+        <h1 class="mb-4">Instagram Knowledge Base</h1>
+        <p class="lead">Search through transcribed Instagram videos from your favorite creators</p>
+        
+        <form action="/search" method="get" class="mt-5">
+            <div class="input-group input-group-lg mb-3">
+                <input type="text" name="query" class="form-control" placeholder="Search for topics, keywords, phrases...">
+                <button class="btn btn-primary" type="submit">
+                    <i class="bi bi-search"></i> Search
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %} 

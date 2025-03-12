@@ -1,0 +1,10 @@
+{
+    "shortcode": "DGZZ-8BNRtl",
+    "timestamp": "2025-02-23T01:32:05",
+    "caption": "Grok 3 - The video explains how Grok 3’s performance claims rely on majority voting across 64 predictions (cons@64) rather than single predictions (cons@1). While this consensus-based approach significantly boosts accuracy scores, it requires 64 times more computing power and isn’t practical for real-world use. The video points out that when measuring single-prediction performance, Grok 3 isn’t actually leading the pack.",
+    "likes": 232,
+    "comments": 5,
+    "url": "https://www.instagram.com/p/DGZZ-8BNRtl/",
+    "username": "rajistics",
+    "download_date": "2025-03-11T22:21:32.225377"
+}

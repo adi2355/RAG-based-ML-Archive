@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Search Results - Instagram Knowledge Base{% endblock %}
+
+{% block content %}
+<div class="row">
+    <!-- Filters sidebar -->
+    <div class="col-md-3">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5 class="mb-0">Filters</h5>
+            </div>
+            <div class="card-body">
+                <form action="/search" method="get">
+                    <input type="hidden" name="query" value="{{ query }}">
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Account</label>
+                        <select name="account" class="form-select">
+                            <option value="">All Accounts</option>
+                            {% for account_name in accounts %}
+                            <option value="{{ account_name }}" {% if account_filter == account_name %}selected{% endif %}>
+                                {{ account_name }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Tags</label>
+                        <div class="d-flex flex-wrap">
+                            {% for tag_item in tags %}
+                            <a href="/search?query={{ query }}&account={{ account_filter }}&tag={{ tag_item.tag }}" 
+                               class="tag-badge badge {% if tag_filter == tag_item.tag %}bg-primary{% else %}bg-secondary{% endif %}">
+                                #{{ tag_item.tag }} ({{ tag_item.count }})
+                            </a>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    
+                    <button type="submit" class="btn btn-primary">Apply Filters</button>
+                    <a href="/search" class="btn btn-outline-secondary">Clear All</a>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Search results -->
+    <div class="col-md-9">
+        <h2>Search Results</h2>
+        
+        <div class="mb-3">
+            <form action="/search" method="get" class="input-group">
+                <input type="text" name="query" class="form-control" value="{{ query }}" placeholder="Search...">
+                <button type="submit" class="btn btn-primary">
+                    <i class="bi bi-search"></i> Search
+                </button>
+            </form>
+        </div>
+        
+        {% if account_filter or tag_filter %}
+        <div class="mb-3">
+            <p>
+                <strong>Filters:</strong>
+                {% if account_filter %}
+                <span class="badge bg-info">Account: {{ account_filter }}</span>
+                {% endif %}
+                {% if tag_filter %}
+                <span class="badge bg-info">Tag: #{{ tag_filter }}</span>
+                {% endif %}
+                <a href="/search?query={{ query }}" class="btn btn-sm btn-outline-secondary">Clear Filters</a>
+            </p>
+        </div>
+        {% endif %}
+        
+        <p>Found {{ total_results }} results</p>
+        
+        {% if results %}
+        <div class="search-results">
+            {% for result in results %}
+            <div class="search-result">
+                <h4>
+                    <a href="{{ result.video_path }}">{{ result.caption[:100] }}{% if result.caption|length > 100 %}...{% endif %}</a>
+                </h4>
+                <p class="text-muted small">
+                    <i class="bi bi-person"></i> {{ result.account }} |
+                    <i class="bi bi-calendar"></i> {{ result.timestamp }} |
+                    <i class="bi bi-heart"></i> {{ result.likes }} |
+                    <i class="bi bi-chat"></i> {{ result.comments }}
+                </p>
+                <p>{{ result.snippet|safe }}</p>
+                <div>
+                    {% for tag in result.tags %}
+                    <a href="/search?tag={{ tag }}" class="tag-badge badge bg-secondary">#{{ tag }}</a>
+                    {% endfor %}
+                </div>
+                <p class="small mt-2">
+                    <a href="{{ result.video_path }}" class="text-decoration-none">View details</a> |
+                    <a href="{{ result.url }}" target="_blank" class="text-decoration-none">Original post <i class="bi bi-box-arrow-up-right"></i></a>
+                </p>
+            </div>
+            {% endfor %}
+        </div>
+        
+        <!-- Pagination -->
+        <nav aria-label="Search results pages">
+            <ul class="pagination justify-content-center">
+                {% if has_prev %}
+                <li class="page-item">
+                    <a class="page-link" href="/search?query={{ query }}&account={{ account_filter }}&tag={{ tag_filter }}&page={{ page - 1 }}">
+                        Previous
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Previous</span>
+                </li>
+                {% endif %}
+                
+                {% for p in range(1, total_pages + 1) %}
+                <li class="page-item {% if p == page %}active{% endif %}">
+                    <a class="page-link" href="/search?query={{ query }}&account={{ account_filter }}&tag={{ tag_filter }}&page={{ p }}">
+                        {{ p }}
+                    </a>
+                </li>
+                {% endfor %}
+                
+                {% if has_next %}
+                <li class="page-item">
+                    <a class="page-link" href="/search?query={{ query }}&account={{ account_filter }}&tag={{ tag_filter }}&page={{ page + 1 }}">
+                        Next
+                    </a>
+                </li>
+                {% else %}
+                <li class="page-item disabled">
+                    <span class="page-link">Next</span>
+                </li>
+                {% endif %}
+            </ul>
+        </nav>
+        {% else %}
+        <div class="alert alert-info">
+            No results found. Try changing your search query or filters.
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %} 

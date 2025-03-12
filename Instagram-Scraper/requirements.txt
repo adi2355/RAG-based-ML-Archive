@@ -1,0 +1,10 @@
+instaloader==4.9.5
+whisper==1.1.10
+flask==2.3.3
+tqdm==4.66.1
+ffmpeg-python==0.2.0
+python-dotenv==1.0.0
+anthropic==0.8.1
+requests==2.31.0
+lru-dict==1.2.0
+nltk==3.8.1 

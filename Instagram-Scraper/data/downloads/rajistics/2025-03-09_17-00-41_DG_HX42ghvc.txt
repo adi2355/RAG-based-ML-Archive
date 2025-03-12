@@ -1,0 +1,1 @@
+Tips for working with small datasets. This includes using cross-validation, models like lasso, and running multiple iterations of feature importance with different random seeds.

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}About - Instagram Knowledge Base{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <h1>About This Project</h1>
+        
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Purpose</h5>
+                <p class="card-text">
+                    This knowledge base was created for personal educational use, to make it easier to search, browse,
+                    and learn from Instagram content that I have been given permission to access.
+                </p>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">How It Works</h5>
+                <p class="card-text">
+                    The system downloads videos from specified Instagram accounts, extracts the audio, transcribes it
+                    using OpenAI's Whisper model, and indexes the transcripts in a searchable database.
+                </p>
+                <p class="card-text">
+                    The web interface allows you to search through all transcribed content, filter by account or tags,
+                    and view the original videos along with their transcripts.
+                </p>
+            </div>
+        </div>
+        
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Ethical Usage</h5>
+                <p class="card-text">
+                    This tool is for personal educational use only and is used with permission from content creators.
+                    All content remains the intellectual property of its original creators.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %} 

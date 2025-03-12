@@ -1,0 +1,159 @@
+{% extends "base.html" %}
+
+{% block title %}Statistics - Instagram Knowledge Base{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+{% endblock %}
+
+{% block content %}
+<h1>Knowledge Base Statistics</h1>
+
+<div class="row mt-4">
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-body text-center">
+                <h5 class="card-title">Total Videos</h5>
+                <p class="card-text display-4">{{ total_videos }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-body text-center">
+                <h5 class="card-title">Accounts</h5>
+                <p class="card-text display-4">{{ accounts|length }}</p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-4">
+        <div class="card mb-4">
+            <div class="card-body text-center">
+                <h5 class="card-title">Total Tags</h5>
+                <p class="card-text display-4">{{ tags|length }}</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Videos by Account</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="accountChart"></canvas>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Timeline</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="timelineChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mt-4">
+    <div class="col-md-12">
+        <div class="card mb-4">
+            <div class="card-header">
+                <h5>Popular Tags</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="tagChart"></canvas>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Account chart
+    const accountCtx = document.getElementById('accountChart').getContext('2d');
+    const accountChart = new Chart(accountCtx, {
+        type: 'pie',
+        data: {
+            labels: [{% for account in accounts %}'{{ account.account }}',{% endfor %}],
+            datasets: [{
+                data: [{% for account in accounts %}{{ account.count }},{% endfor %}],
+                backgroundColor: [
+                    'rgba(54, 162, 235, 0.7)',
+                    'rgba(255, 99, 132, 0.7)',
+                    'rgba(255, 206, 86, 0.7)',
+                    'rgba(75, 192, 192, 0.7)',
+                    'rgba(153, 102, 255, 0.7)',
+                    'rgba(255, 159, 64, 0.7)',
+                    'rgba(199, 199, 199, 0.7)',
+                ],
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: {
+                    position: 'right',
+                }
+            }
+        }
+    });
+    
+    // Timeline chart
+    const timelineCtx = document.getElementById('timelineChart').getContext('2d');
+    const timelineChart = new Chart(timelineCtx, {
+        type: 'line',
+        data: {
+            labels: [{% for entry in timeline %}'{{ entry.month }}',{% endfor %}],
+            datasets: [{
+                label: 'Videos per Month',
+                data: [{% for entry in timeline %}{{ entry.count }},{% endfor %}],
+                backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1,
+                tension: 0.1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+    
+    // Tags chart
+    const tagCtx = document.getElementById('tagChart').getContext('2d');
+    const tagChart = new Chart(tagCtx, {
+        type: 'bar',
+        data: {
+            labels: [{% for tag in tags[:15] %}'#{{ tag.tag }}',{% endfor %}],
+            datasets: [{
+                label: 'Count',
+                data: [{% for tag in tags[:15] %}{{ tag.count }},{% endfor %}],
+                backgroundColor: 'rgba(54, 162, 235, 0.7)',
+                borderColor: 'rgba(54, 162, 235, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true
+                }
+            }
+        }
+    });
+</script>
+{% endblock %} 

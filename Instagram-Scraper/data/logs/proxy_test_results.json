@@ -1,0 +1,13 @@
+{
+  "timestamp": "2025-03-12T01:06:29.932682",
+  "brightdata_test": {
+    "status_code": 200,
+    "success": true,
+    "response_text": "Welcome to Bright Data! Here are your proxy details\nCountry: US\nCity: Holly Ridge\nRegion: NC\nPostal Code: 28445\nLatitude: 34.4955\nLongitude: -77.5546\nTimezone: America/New_York\nASN number: 20115\nASN Organization name: CHARTER-20115\n\nCommon usage examples:\n\n[USERNAME]-country-us:[PASSWORD]  // Target only US based proxy peers\n[USERNAME]-country-us-city-newyork:[PASSWORD]  // Target only New York City based proxy peers\n[USERNAME]-country-us-state-ny:[PASSWORD]  // Target only New York State proxy peers\n[USERNAME]-asn-56386:[PASSWORD]  // Target only proxy peers from ASN 56386\n[USERNAME]-session-[RANDOM_STRING]:[PASSWORD]  // Different session will guarantee a new IP with each request, same session will guarantee the same IP.\n\n\nTo get a simple JSON response, use https://geo.brdtest.com/mygeo.json\n\nMore information on: https://docs.brightdata.com/proxy-networks/residential/introduction\n\nIMPORTANT: Due to the Residential network's sensitive nature, stricter regulation is employed,\nmake sure you are aware of the limitations of the Residential network:\nhttps://docs.brightdata.com/proxy-networks/residential/network-access"
+  },
+  "instagram_test": {
+    "status_code": 200,
+    "success": true,
+    "content_length": 388431
+  }
+}

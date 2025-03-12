@@ -1,0 +1,17 @@
+Instagram-Scraper/config.py
+
+# Virtual environments
+venv/
+.env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+
+# Logs and temp files
+*.log
+.DS_Store
