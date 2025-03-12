@@ -15,3 +15,13 @@ build/
 # Logs and temp files
 *.log
 .DS_Store
+templates/
+data/
+venv/
+responses/
+logs/
+visualizations/
+run_with_clean_env.sh
+code-collection.txt
+python.txt
+python
