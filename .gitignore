@@ -3,3 +3,34 @@ __pycache__/
 .env/
 venv/
 .DS_Store
+config.py
+
+# Virtual environments
+venv/
+.env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+dist/
+build/
+
+# Logs and temp files
+*.log
+.DS_Store
+templates/
+Instagram-Scraper/data/
+venv/
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-shm
+*.sqlite3-wal
+Instagram-Scraper/ responses/
+Instagram-Scraper/logs/
+Instagram-Scraper/visualizations/
+Instagram-Scraper/run_with_clean_env.sh
+Instagram-Scraper/code-collection.txt
+Instagram-Scraper/python.txt
+Instagram-Scraper/python
