@@ -8,6 +8,7 @@ import logging
 import random
 from datetime import datetime, timedelta
 import instaloader
+import sqlite3
 
 # Add imports for proxy testing
 import requests
@@ -32,7 +33,12 @@ from config import (
     MAX_DOWNLOADS_PER_RUN,
     DATA_DIR,
     ACCOUNT_COOLDOWN_MINUTES,
-    PROXY_COOLDOWN_MINUTES
+    PROXY_COOLDOWN_MINUTES,
+    DB_PATH,
+    INSTAGRAM_CREDENTIALS,
+    PROXY_CONFIG,
+    RATE_LIMIT_WAIT,
+    CONTENT_SOURCES
 )
 
 # Configure logging
@@ -40,12 +46,13 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('downloader.log'),
+        logging.FileHandler(os.path.join(DATA_DIR, 'logs', 'downloader.log')),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger('downloader')
 
+# Account state tracking
 def setup_directories():
     """Create necessary directories if they don't exist"""
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)

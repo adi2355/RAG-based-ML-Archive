@@ -14,6 +14,25 @@ import indexer
 import summarizer
 from app import app
 
+# Import the new modules
+try:
+    import db_migration
+    import github_collector
+    import arxiv_collector
+    import concept_extractor
+    import chunking
+    import embeddings
+    import generate_embeddings
+    import vector_search
+    import hybrid_search
+    has_additional_modules = True
+    has_vector_search = True
+except ImportError as e:
+    has_additional_modules = False
+    has_vector_search = False
+    import_error = str(e)
+    missing_module = str(e).split("No module named ")[-1].strip("'")
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -28,6 +47,7 @@ logger = logging.getLogger('main')
 def setup():
     """Setup necessary directories"""
     os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs('logs', exist_ok=True)
 
 def run_downloader():
     """Run the Instagram downloader"""
@@ -62,6 +82,250 @@ def run_web_interface():
     logger.info("Starting web interface")
     app.run(host='0.0.0.0', port=5000)
 
+def run_db_migration():
+    """Run database migration to support multiple content sources"""
+    if not has_additional_modules:
+        logger.error("Database migration module not available")
+        return
+    
+    logger.info("Starting database migration")
+    start_time = time()
+    success = db_migration.migrate_database()
+    
+    if success:
+        logger.info(f"Database migration completed in {time() - start_time:.2f} seconds")
+    else:
+        logger.error(f"Database migration failed after {time() - start_time:.2f} seconds")
+
+def run_github_collector(max_repos=None):
+    """Run GitHub repository collection"""
+    if not has_additional_modules:
+        logger.error("GitHub collector module not available")
+        return
+    
+    logger.info("Starting GitHub repository collection")
+    start_time = time()
+    success_count = github_collector.collect_github_repos(max_repos=max_repos)
+    logger.info(f"GitHub collection completed in {time() - start_time:.2f} seconds, processed {success_count} repositories")
+
+def run_papers_collector(max_papers=None, force_update=False):
+    """Run ArXiv research paper collection"""
+    if not has_additional_modules:
+        logger.error("ArXiv collector module not available")
+        return
+    
+    logger.info("Starting ArXiv research paper collection")
+    start_time = time()
+    papers_added = arxiv_collector.collect_papers(max_papers=max_papers, force_update=force_update)
+    logger.info(f"ArXiv collection completed in {time() - start_time:.2f} seconds, added {papers_added} new papers")
+
+def run_concept_extractor(limit=None, source_type=None):
+    """Run concept extraction on content"""
+    if not has_additional_modules:
+        logger.error("Concept extractor module not available")
+        return
+    
+    logger.info("Starting concept extraction")
+    start_time = time()
+    
+    if source_type:
+        logger.info(f"Processing {limit or 'all'} items from source type: {source_type}")
+        processed = concept_extractor.process_unprocessed_content(limit=limit or 5, source_type=source_type)
+        logger.info(f"Processed {processed} items from {source_type}")
+    else:
+        # Process some content from each source type
+        total_processed = 0
+        for src_type in ["research_paper", "github", "instagram"]:
+            logger.info(f"Processing source type: {src_type}")
+            processed = concept_extractor.process_unprocessed_content(limit=limit or 3, source_type=src_type)
+            logger.info(f"Processed {processed} items from {src_type}")
+            total_processed += processed
+        
+        logger.info(f"Concept extraction completed in {time() - start_time:.2f} seconds, processed {total_processed} items")
+
+def run_embedding_generation(source_type=None, limit=None, batch_size=50, 
+                           chunk_size=500, chunk_overlap=100, force=False):
+    """Generate embeddings for content"""
+    if not has_vector_search:
+        logger.error(f"Vector search modules not available: {import_error}")
+        return
+    
+    logger.info("Starting embedding generation")
+    start_time = time()
+    
+    args = []
+    if source_type:
+        args.extend(["--source-type", source_type])
+    
+    if limit:
+        args.extend(["--limit", str(limit)])
+    
+    if batch_size:
+        args.extend(["--batch-size", str(batch_size)])
+    
+    if chunk_size:
+        args.extend(["--chunk-size", str(chunk_size)])
+    
+    if chunk_overlap:
+        args.extend(["--chunk-overlap", str(chunk_overlap)])
+    
+    if force:
+        args.append("--force")
+    
+    # Run embedding generator script
+    import sys
+    old_args = sys.argv
+    sys.argv = ["generate_embeddings.py"] + args
+    try:
+        generate_embeddings.main()
+    except Exception as e:
+        logger.error(f"Error generating embeddings: {str(e)}")
+    finally:
+        sys.argv = old_args
+    
+    logger.info(f"Embedding generation completed in {time() - start_time:.2f} seconds")
+
+def run_vector_search(query, top_k=5, source_type=None, in_memory_index=False):
+    """Run vector search for a query"""
+    if not has_vector_search:
+        logger.error(f"Vector search modules not available: {import_error}")
+        return []
+    
+    logger.info(f"Running vector search for: {query}")
+    start_time = time()
+    
+    try:
+        if in_memory_index:
+            # Create in-memory index for faster search
+            index = vector_search.create_memory_index()
+            
+            # Create embedding generator
+            embedding_generator = embeddings.EmbeddingGenerator()
+            
+            # Generate query embedding
+            query_embedding = embedding_generator.generate_embedding(query)
+            
+            # Search using in-memory index
+            results = vector_search.search_memory_index(query_embedding, index, top_k=top_k)
+            
+            # Fetch chunk text and enrich results
+            results = vector_search.enrich_search_results(results)
+        else:
+            # Use standard search
+            results = vector_search.debug_search(query, top_k=top_k)
+        
+        logger.info(f"Vector search completed in {time() - start_time:.2f} seconds with {len(results)} results")
+        
+        # Print results
+        print(f"\nVector search results for: {query}")
+        print("=" * 80)
+        
+        for i, result in enumerate(results):
+            print(f"\nResult {i+1} - Similarity: {result.get('similarity', 0):.4f}")
+            print(f"Title: {result.get('title', 'Unknown')}")
+            print(f"Source: {result.get('source_type', 'Unknown')}")
+            print(f"Content ID: {result.get('content_id', 'Unknown')}")
+            print("-" * 40)
+            if 'chunk_text' in result:
+                text = result['chunk_text']
+                print(text[:300] + "..." if len(text) > 300 else text)
+            print("-" * 40)
+            
+            if 'concepts' in result:
+                print("Concepts:")
+                for concept in result['concepts'][:5]:
+                    print(f"- {concept['name']} ({concept['category']}, {concept['importance']})")
+            print()
+        
+        return results
+    
+    except Exception as e:
+        logger.error(f"Error performing vector search: {str(e)}")
+        return []
+
+def run_hybrid_search(query, top_k=5, source_type=None, vector_weight=None, 
+                     keyword_weight=None, adaptive=True):
+    """Run hybrid search for a query"""
+    if not has_vector_search:
+        logger.error(f"Vector search modules not available: {import_error}")
+        return []
+    
+    logger.info(f"Running hybrid search for: {query}")
+    start_time = time()
+    
+    try:
+        # Load weight history if using adaptive weighting
+        weight_history = None
+        if adaptive and (vector_weight is None or keyword_weight is None):
+            weight_history = hybrid_search.load_weights_history()
+            
+            # Get query type
+            query_type = hybrid_search.classify_query_type(query)
+            
+            # Use query-specific weights if available
+            normalized_query = query.lower().strip()
+            if normalized_query in weight_history['queries']:
+                vector_weight = weight_history['queries'][normalized_query]['vector_weight']
+                keyword_weight = weight_history['queries'][normalized_query]['keyword_weight']
+                logger.info(f"Using query-specific weights: vector={vector_weight:.2f}, keyword={keyword_weight:.2f}")
+            else:
+                # Use query type defaults
+                type_key = f"default_{query_type}_vector_weight"
+                if type_key in weight_history:
+                    vector_weight = weight_history[type_key]
+                    keyword_weight = 1.0 - vector_weight
+                    logger.info(f"Using {query_type} query type weights: vector={vector_weight:.2f}, keyword={keyword_weight:.2f}")
+        
+        # Perform hybrid search
+        results = hybrid_search.hybrid_search(
+            query=query,
+            top_k=top_k,
+            source_type=source_type,
+            vector_weight=vector_weight,
+            keyword_weight=keyword_weight
+        )
+        
+        logger.info(f"Hybrid search completed in {time() - start_time:.2f} seconds with {len(results)} results")
+        
+        # Get actual weights used for display
+        if vector_weight is None or keyword_weight is None:
+            vector_weight, keyword_weight = hybrid_search.determine_weights(query)
+        
+        # Print results
+        print(f"\nHybrid search results for: {query}")
+        print(f"Weights: vector={vector_weight:.2f}, keyword={keyword_weight:.2f}")
+        print("=" * 80)
+        
+        for i, result in enumerate(results):
+            print(f"\nResult {i+1} - Combined Score: {result.get('combined_score', 0):.4f}")
+            print(f"Vector Score: {result.get('vector_score', 0):.4f}, Keyword Score: {result.get('keyword_score', 0):.4f}")
+            print(f"Title: {result.get('title', 'Unknown')}")
+            print(f"Source: {result.get('source_type', 'Unknown')}")
+            print(f"Content ID: {result['content_id']}")
+            print("-" * 40)
+            
+            if 'snippet' in result and result['snippet']:
+                print(f"Keyword Match: {result['snippet']}")
+            
+            if 'chunk_text' in result and result['chunk_text']:
+                text = result['chunk_text']
+                print(text[:300] + "..." if len(text) > 300 else text)
+            
+            print("-" * 40)
+            
+            if 'concepts' in result:
+                print("Concepts:")
+                for concept in result['concepts'][:5]:
+                    print(f"- {concept['name']} ({concept['category']}, {concept['importance']})")
+            
+            print()
+        
+        return results
+    
+    except Exception as e:
+        logger.error(f"Error performing hybrid search: {str(e)}")
+        return []
+
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(description='Instagram Knowledge Base')
@@ -71,6 +335,40 @@ def main():
     parser.add_argument('--index', action='store_true', help='Run the indexer module')
     parser.add_argument('--web', action='store_true', help='Run the web interface')
     parser.add_argument('--all', action='store_true', help='Run the complete pipeline')
+    
+    # Add new arguments for additional modules
+    if has_additional_modules:
+        parser.add_argument('--migrate', action='store_true', help='Run database migration')
+        parser.add_argument('--github', action='store_true', help='Run GitHub repository collection')
+        parser.add_argument('--github-max', type=int, help='Maximum number of GitHub repositories to collect')
+        parser.add_argument('--papers', action='store_true', help='Run ArXiv research paper collection')
+        parser.add_argument('--papers-max', type=int, help='Maximum number of papers to collect')
+        parser.add_argument('--force-update', action='store_true', help='Force update of existing content')
+        parser.add_argument('--concepts', action='store_true', help='Run AI concept extraction')
+        parser.add_argument('--concepts-limit', type=int, help='Maximum number of items to process for concept extraction')
+        parser.add_argument('--concepts-source', choices=['research_paper', 'github', 'instagram'], 
+                            help='Only extract concepts from this source type')
+    
+    # Add vector search related arguments
+    if has_vector_search:
+        parser.add_argument('--generate-embeddings', action='store_true', help='Generate vector embeddings for content')
+        parser.add_argument('--embeddings-source', choices=['research_paper', 'github', 'instagram'],
+                            help='Generate embeddings only for this source type')
+        parser.add_argument('--embeddings-limit', type=int, help='Maximum number of items to process for embedding generation')
+        parser.add_argument('--embeddings-batch', type=int, default=50, help='Batch size for embedding generation')
+        parser.add_argument('--embeddings-chunk', type=int, default=500, help='Chunk size for embedding generation')
+        parser.add_argument('--embeddings-overlap', type=int, default=100, help='Chunk overlap for embedding generation')
+        parser.add_argument('--embeddings-force', action='store_true', help='Force regeneration of existing embeddings')
+        
+        parser.add_argument('--vector-search', help='Run vector search with the provided query')
+        parser.add_argument('--hybrid-search', help='Run hybrid search with the provided query')
+        parser.add_argument('--search-top-k', type=int, default=5, help='Number of search results to return')
+        parser.add_argument('--search-source', choices=['research_paper', 'github', 'instagram'],
+                            help='Search only in this source type')
+        parser.add_argument('--vector-weight', type=float, help='Weight for vector search (0-1)')
+        parser.add_argument('--keyword-weight', type=float, help='Weight for keyword search (0-1)')
+        parser.add_argument('--adaptive-weights', action='store_true', help='Use adaptive weights based on query type')
+        parser.add_argument('--in-memory-index', action='store_true', help='Use in-memory index for vector search (faster)')
     
     args = parser.parse_args()
     
@@ -90,11 +388,88 @@ def main():
     if args.all or args.index:
         run_indexer()
     
+    # Run new modules if available
+    if has_additional_modules:
+        if args.all or args.migrate:
+            run_db_migration()
+        
+        if args.all or args.github:
+            max_repos = args.github_max if hasattr(args, 'github_max') else None
+            run_github_collector(max_repos=max_repos)
+            
+        if args.all or args.papers:
+            max_papers = args.papers_max if hasattr(args, 'papers_max') else None
+            force_update = args.force_update if hasattr(args, 'force_update') else False
+            run_papers_collector(max_papers=max_papers, force_update=force_update)
+            
+        if args.all or args.concepts:
+            limit = args.concepts_limit if hasattr(args, 'concepts_limit') else None
+            source_type = args.concepts_source if hasattr(args, 'concepts_source') else None
+            run_concept_extractor(limit=limit, source_type=source_type)
+    
+    # Run vector search modules if available
+    if has_vector_search:
+        if args.generate_embeddings:
+            source_type = args.embeddings_source if hasattr(args, 'embeddings_source') else None
+            limit = args.embeddings_limit if hasattr(args, 'embeddings_limit') else None
+            batch_size = args.embeddings_batch if hasattr(args, 'embeddings_batch') else 50
+            chunk_size = args.embeddings_chunk if hasattr(args, 'embeddings_chunk') else 500
+            chunk_overlap = args.embeddings_overlap if hasattr(args, 'embeddings_overlap') else 100
+            force = args.embeddings_force if hasattr(args, 'embeddings_force') else False
+            
+            run_embedding_generation(
+                source_type=source_type, 
+                limit=limit,
+                batch_size=batch_size,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                force=force
+            )
+        
+        if args.vector_search:
+            top_k = args.search_top_k if hasattr(args, 'search_top_k') else 5
+            source_type = args.search_source if hasattr(args, 'search_source') else None
+            in_memory_index = args.in_memory_index if hasattr(args, 'in_memory_index') else False
+            
+            run_vector_search(
+                query=args.vector_search,
+                top_k=top_k,
+                source_type=source_type,
+                in_memory_index=in_memory_index
+            )
+        
+        if args.hybrid_search:
+            top_k = args.search_top_k if hasattr(args, 'search_top_k') else 5
+            source_type = args.search_source if hasattr(args, 'search_source') else None
+            vector_weight = args.vector_weight if hasattr(args, 'vector_weight') else None
+            keyword_weight = args.keyword_weight if hasattr(args, 'keyword_weight') else None
+            adaptive = args.adaptive_weights if hasattr(args, 'adaptive_weights') else True
+            
+            run_hybrid_search(
+                query=args.hybrid_search,
+                top_k=top_k,
+                source_type=source_type,
+                vector_weight=vector_weight,
+                keyword_weight=keyword_weight,
+                adaptive=adaptive
+            )
+    
     if args.all or args.web:
         run_web_interface()
     
     # If no arguments provided, show help
-    if not (args.download or args.transcribe or args.summarize or args.index or args.web or args.all):
+    no_args = not (args.download or args.transcribe or args.summarize or 
+                  args.index or args.web or args.all)
+    
+    # Check for new arguments if modules are available
+    if has_additional_modules:
+        no_args = no_args and not (args.migrate or args.github or args.papers or args.concepts)
+    
+    # Check for vector search arguments
+    if has_vector_search:
+        no_args = no_args and not (args.generate_embeddings or args.vector_search or args.hybrid_search)
+    
+    if no_args:
         parser.print_help()
 
 if __name__ == "__main__":

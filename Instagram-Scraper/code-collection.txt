@@ -554,6 +554,428 @@ if __name__ == '__main__':
     app.run(host='0.0.0.0', port=WEB_PORT, debug=DEBUG_MODE) 
 
 ================================================================================
+File: arxiv_collector.py
+================================================================================
+
+"""
+Module for collecting and processing AI/ML research papers from ArXiv
+"""
+import os
+import json
+import time
+import logging
+import sqlite3
+import requests
+import feedparser
+from datetime import datetime, timedelta
+import PyPDF2
+import io
+import config
+
+# Configure logging
+log_dir = os.path.join(config.DATA_DIR, 'logs')
+os.makedirs(log_dir, exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(os.path.join(log_dir, 'arxiv_collector.log')),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger('arxiv_collector')
+
+def setup_directories():
+    """Create necessary directories for storing paper data"""
+    papers_dir = os.path.join(config.DATA_DIR, "papers")
+    papers_pdf_dir = os.path.join(papers_dir, "pdfs")
+    papers_text_dir = os.path.join(papers_dir, "text")
+    
+    os.makedirs(papers_dir, exist_ok=True)
+    os.makedirs(papers_pdf_dir, exist_ok=True)
+    os.makedirs(papers_text_dir, exist_ok=True)
+    
+    return papers_dir, papers_pdf_dir, papers_text_dir
+
+def extract_text_from_pdf(pdf_path):
+    """Extract text content from a PDF file"""
+    try:
+        text = ""
+        with open(pdf_path, 'rb') as file:
+            reader = PyPDF2.PdfReader(file)
+            num_pages = len(reader.pages)
+            
+            # Extract text from each page
+            for page_num in range(num_pages):
+                page = reader.pages[page_num]
+                text += page.extract_text() + "\n\n"
+                
+            logger.info(f"Extracted text from {pdf_path} ({num_pages} pages)")
+        return text
+    except Exception as e:
+        logger.error(f"Error extracting text from PDF {pdf_path}: {str(e)}")
+        return None
+
+def parse_sections(text):
+    """Attempt to parse sections from extracted PDF text"""
+    sections = {
+        "abstract": "",
+        "introduction": "",
+        "methodology": "",
+        "results": "",
+        "conclusion": "",
+        "references": ""
+    }
+    
+    if not text:
+        return sections
+        
+    # Simple heuristic section detection
+    lines = text.split('\n')
+    current_section = "abstract"
+    
+    for line in lines:
+        line = line.strip()
+        line_lower = line.lower()
+        
+        # Check for section headers
+        if "abstract" in line_lower and len(line) < 30:
+            current_section = "abstract"
+            continue
+        elif any(x in line_lower for x in ["introduction", "background"]) and len(line) < 30:
+            current_section = "introduction"
+            continue
+        elif any(x in line_lower for x in ["method", "approach", "model", "implementation"]) and len(line) < 30:
+            current_section = "methodology"
+            continue
+        elif any(x in line_lower for x in ["result", "evaluation", "experiment", "performance"]) and len(line) < 30:
+            current_section = "results"
+            continue
+        elif any(x in line_lower for x in ["conclusion", "discussion", "future work"]) and len(line) < 30:
+            current_section = "conclusion"
+            continue
+        elif any(x in line_lower for x in ["reference", "bibliography"]) and len(line) < 30:
+            current_section = "references"
+            continue
+            
+        # Add text to current section
+        if line and current_section in sections:
+            sections[current_section] += line + "\n"
+    
+    # Clean up sections
+    for section in sections:
+        if len(sections[section]) > 100000:  # Limit section size
+            sections[section] = sections[section][:100000] + "... [truncated]"
+    
+    return sections
+
+def collect_papers(max_papers=None, force_update=False):
+    """
+    Collect papers from ArXiv based on configured topics
+    
+    Args:
+        max_papers: Maximum number of papers to collect (None for no limit)
+        force_update: Whether to force update of existing papers
+        
+    Returns:
+        Number of new papers added
+    """
+    papers_dir, papers_pdf_dir, papers_text_dir = setup_directories()
+    
+    # Connect to database
+    conn = sqlite3.connect(config.DB_PATH)
+    
+    # Get source type ID for 'research_paper'
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM source_types WHERE name = 'research_paper'")
+    result = cursor.fetchone()
+    if result:
+        source_type_id = result[0]
+    else:
+        logger.error("Source type 'research_paper' not found in database")
+        conn.close()
+        return 0
+    
+    papers_processed = 0
+    papers_added = 0
+    paper_topics = config.RESEARCH_PAPER_CONFIG.get('topics', [
+        "large language models",
+        "diffusion models",
+        "transformers", 
+        "generative ai",
+        "reinforcement learning",
+        "computer vision"
+    ])
+    
+    max_papers_per_topic = config.RESEARCH_PAPER_CONFIG.get('max_papers_per_topic', 5)
+    max_age_days = config.RESEARCH_PAPER_CONFIG.get('max_age_days', 60)
+    
+    # Adjust max_papers_per_topic if max_papers is specified
+    if max_papers and len(paper_topics) > 0:
+        max_papers_per_topic = min(max_papers_per_topic, max_papers // len(paper_topics) + 1)
+    
+    # Process each configured topic
+    for topic in paper_topics:
+        logger.info(f"Collecting papers for topic: {topic}")
+        
+        # Construct ArXiv API query
+        query = f'all:"{topic}" AND (cat:cs.AI OR cat:cs.LG OR cat:cs.CL OR cat:cs.CV)'
+        url = f"http://export.arxiv.org/api/query?search_query={query.replace(' ', '+')}&sortBy=submittedDate&sortOrder=descending&max_results={max_papers_per_topic}"
+        
+        try:
+            # Get papers from ArXiv
+            response = feedparser.parse(url)
+            
+            if not response.entries:
+                logger.warning(f"No papers found for topic: {topic}")
+                continue
+                
+            logger.info(f"Found {len(response.entries)} papers for topic: {topic}")
+            
+            # Process each paper
+            for entry in response.entries:
+                # Debug to see the structure of the entry
+                entry_keys = entry.keys()
+                logger.debug(f"Available keys in entry: {entry_keys}")
+                
+                try:
+                    # Safe extraction of paper ID
+                    paper_id = entry.id.split('/abs/')[-1] if hasattr(entry, 'id') else f"unknown_{time.time()}"
+                    papers_processed += 1
+                    
+                    if max_papers and papers_added >= max_papers:
+                        logger.info(f"Reached maximum paper limit: {max_papers}")
+                        break
+                    
+                    # Check if paper already exists
+                    cursor.execute(
+                        "SELECT id, last_crawled FROM research_papers WHERE doi = ?", 
+                        (paper_id,)
+                    )
+                    existing = cursor.fetchone()
+                    
+                    # Skip if paper exists and was recently updated (unless force_update is True)
+                    if existing and not force_update:
+                        if existing[1]:  # Check if last_crawled is not None
+                            try:
+                                last_updated = datetime.fromisoformat(existing[1].replace('Z', '+00:00'))
+                                if (datetime.now() - last_updated).days < 30:
+                                    logger.debug(f"Skipping recent paper: {paper_id}")
+                                    continue
+                            except (ValueError, AttributeError):
+                                # If date parsing fails, process the paper anyway
+                                pass
+                    
+                    # Safe extraction of publication date
+                    published = datetime.now()  # Default to current time
+                    if hasattr(entry, 'published_parsed') and entry.published_parsed:
+                        try:
+                            published_date = entry.published_parsed
+                            published = datetime(
+                                year=published_date[0],
+                                month=published_date[1],
+                                day=published_date[2],
+                                hour=published_date[3],
+                                minute=published_date[4],
+                                second=published_date[5]
+                            )
+                        except (IndexError, TypeError, ValueError) as e:
+                            logger.warning(f"Error parsing published date for {paper_id}: {str(e)}")
+                    
+                    if not force_update and (datetime.now() - published).days > max_age_days:
+                        logger.debug(f"Skipping old paper: {paper_id} ({published})")
+                        continue
+                    
+                    # Safe extraction of paper details
+                    title = entry.get('title', f"Unknown Paper {paper_id}")
+                    
+                    # Safe extraction of authors
+                    authors = ""
+                    if hasattr(entry, 'authors'):
+                        try:
+                            authors = ", ".join(author.get('name', '') for author in entry.authors)
+                        except (AttributeError, TypeError) as e:
+                            logger.warning(f"Error extracting authors for {paper_id}: {str(e)}")
+                    
+                    # Safe extraction of summary
+                    summary = entry.get('summary', "No abstract available")
+                    
+                    # Get PDF link
+                    pdf_link = None
+                    if hasattr(entry, 'links'):
+                        for link in entry.links:
+                            if hasattr(link, 'rel') and hasattr(link, 'type'):
+                                if link.rel == 'alternate' and link.type == 'application/pdf':
+                                    pdf_link = link.href
+                                    break
+                            if hasattr(link, 'title') and link.title == 'pdf':
+                                pdf_link = link.href
+                                break
+                    
+                    # Extract article URL
+                    article_url = None
+                    if hasattr(entry, 'links'):
+                        for link in entry.links:
+                            if hasattr(link, 'rel') and hasattr(link, 'type'):
+                                if link.rel == 'alternate' and link.type == 'text/html':
+                                    article_url = link.href
+                                    break
+                    
+                    if not article_url:
+                        article_url = f"https://arxiv.org/abs/{paper_id}"
+                    
+                    # Extract PDF content if available
+                    sections = {"abstract": summary}
+                    pdf_path = None
+                    extracted_text = None
+                    
+                    if pdf_link:
+                        try:
+                            # Save PDF locally
+                            pdf_path = os.path.join(papers_pdf_dir, f"{paper_id.replace('/', '_')}.pdf")
+                            if not os.path.exists(pdf_path) or force_update:
+                                logger.info(f"Downloading PDF for {paper_id} from {pdf_link}")
+                                
+                                # Add a delay to be respectful of the API
+                                time.sleep(2)
+                                
+                                pdf_response = requests.get(pdf_link, timeout=30)
+                                with open(pdf_path, 'wb') as f:
+                                    f.write(pdf_response.content)
+                                logger.info(f"Downloaded PDF for {paper_id}")
+                            
+                            # Extract text from PDF
+                            extracted_text = extract_text_from_pdf(pdf_path)
+                            if extracted_text:
+                                # Save extracted text
+                                text_path = os.path.join(papers_text_dir, f"{paper_id.replace('/', '_')}.txt")
+                                with open(text_path, 'w', encoding='utf-8') as f:
+                                    f.write(extracted_text)
+                                
+                                # Parse sections
+                                sections = parse_sections(extracted_text)
+                                if not sections["abstract"].strip():
+                                    sections["abstract"] = summary
+                            
+                        except Exception as e:
+                            logger.error(f"Error processing PDF for {paper_id}: {str(e)}")
+                    
+                    # Calculate publication year
+                    publication_year = published.year
+                    
+                    # Prepare data for database
+                    if existing:
+                        # Update existing paper record
+                        cursor.execute("""
+                            UPDATE research_papers
+                            SET title = ?, authors = ?, abstract = ?, 
+                                url = ?, pdf_path = ?, content = ?, last_crawled = ?
+                            WHERE id = ?
+                        """, (
+                            title,
+                            authors,
+                            sections["abstract"],
+                            article_url,
+                            pdf_path if pdf_path else None,
+                            extracted_text,
+                            datetime.now().isoformat(),
+                            existing[0]
+                        ))
+                        
+                        # Update ai_content record
+                        cursor.execute("""
+                            UPDATE ai_content
+                            SET title = ?, description = ?, content = ?,
+                                url = ?, date_collected = ?, metadata = ?
+                            WHERE source_type_id = ? AND source_id = ?
+                        """, (
+                            title,
+                            sections["abstract"],
+                            extracted_text if extracted_text else sections["abstract"],
+                            article_url,
+                            datetime.now().isoformat(),
+                            json.dumps({
+                                "authors": authors,
+                                "published_date": published.isoformat(),
+                                "year": publication_year,
+                                "sections": sections
+                            }),
+                            source_type_id,
+                            str(existing[0])
+                        ))
+                        
+                        logger.info(f"Updated paper: {title}")
+                    else:
+                        # Insert into research_papers
+                        cursor.execute("""
+                            INSERT INTO research_papers (
+                                title, authors, abstract, publication, year,
+                                url, doi, pdf_path, content, last_crawled
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            title,
+                            authors,
+                            sections["abstract"],
+                            "arXiv",  # Publication name
+                            publication_year,
+                            article_url,
+                            paper_id,  # Using arXiv ID as DOI
+                            pdf_path if pdf_path else None,
+                            extracted_text,
+                            datetime.now().isoformat()
+                        ))
+                        
+                        # Get the inserted ID
+                        paper_db_id = cursor.lastrowid
+                        
+                        # Insert into ai_content
+                        cursor.execute("""
+                            INSERT INTO ai_content (
+                                source_type_id, source_id, title, description, content,
+                                url, date_created, date_collected, metadata, is_indexed
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            source_type_id,
+                            str(paper_db_id),
+                            title,
+                            sections["abstract"],
+                            extracted_text if extracted_text else sections["abstract"],
+                            article_url,
+                            published.isoformat(),
+                            datetime.now().isoformat(),
+                            json.dumps({
+                                "authors": authors,
+                                "published_date": published.isoformat(),
+                                "year": publication_year,
+                                "sections": sections
+                            }),
+                            0  # Not indexed yet
+                        ))
+                        
+                        papers_added += 1
+                        logger.info(f"Added new paper: {title}")
+                    
+                    conn.commit()
+                
+                except Exception as e:
+                    logger.error(f"Error processing paper entry: {str(e)}")
+                
+                # Add a delay to be respectful of the API
+                time.sleep(3)
+                
+        except Exception as e:
+            logger.error(f"Error collecting papers for topic {topic}: {str(e)}")
+            continue
+    
+    conn.close()
+    logger.info(f"Paper collection complete. Processed {papers_processed} papers, added {papers_added} new papers.")
+    return papers_added
+
+if __name__ == "__main__":
+    collect_papers() 
+
+================================================================================
 File: collectCode.js
 ================================================================================
 
@@ -720,6 +1142,430 @@ if (isMainModule) {
 export { collectCode }; 
 
 ================================================================================
+File: concept_extractor.py
+================================================================================
+
+"""
+Concept extractor module for identifying and extracting AI concepts from content
+
+This module uses anthropic.claude to analyze content from various sources
+(research papers, GitHub repositories, Instagram videos) and extract
+AI/ML concepts, creating a structured knowledge graph of concepts.
+"""
+import os
+import json
+import time
+import logging
+import sqlite3
+from datetime import datetime
+import anthropic
+import config
+
+# Configure logging
+log_dir = os.path.join(config.DATA_DIR, 'logs')
+os.makedirs(log_dir, exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(os.path.join(log_dir, 'concept_extractor.log')),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger('concept_extractor')
+
+# Set up the Anthropic Claude client
+client = anthropic.Anthropic(api_key=config.ANTHROPIC_API_KEY)
+
+def extract_concepts_from_text(text, content_type, title="", context=""):
+    """
+    Extract AI concepts from text content using Claude
+    
+    Args:
+        text (str): The text content to analyze
+        content_type (str): The type of content (research_paper, github, instagram)
+        title (str): Title of the content
+        context (str): Additional context or metadata
+        
+    Returns:
+        dict: Dictionary of extracted concepts
+    """
+    if not text or len(text.strip()) < 50:
+        logger.warning(f"Text too short for concept extraction: {text[:50]}...")
+        return {"concepts": [], "relationships": []}
+    
+    # Truncate text if it's too long
+    max_length = 20000  # Claude can handle larger texts, but we'll keep it reasonable
+    if len(text) > max_length:
+        logger.info(f"Truncating text from {len(text)} to {max_length} characters")
+        text = text[:max_length] + "..."
+    
+    # Prepare prompt based on content type
+    type_context = {
+        "research_paper": "This is content from a research paper on AI/ML.",
+        "github": "This is content from a GitHub repository related to AI/ML.",
+        "instagram": "This is a transcript or summary from an Instagram video about AI/ML."
+    }
+    
+    content_context = type_context.get(content_type, "This is AI/ML related content.")
+    
+    prompt = f"""
+    {content_context}
+    Title: {title}
+    Context: {context}
+    
+    I need you to analyze the following content and extract key AI/ML concepts. For each concept:
+    1. Provide a short description
+    2. Identify related concepts
+    3. Categorize it (e.g., model architecture, training technique, dataset, evaluation metric)
+    4. Assess its importance in the content (high/medium/low)
+    
+    Your response should be a well-structured JSON with the following format:
+    {{
+        "concepts": [
+            {{
+                "name": "concept name",
+                "description": "brief description",
+                "category": "category",
+                "importance": "high/medium/low",
+                "related_concepts": ["related concept 1", "related concept 2"]
+            }}
+        ],
+        "relationships": [
+            {{
+                "source": "concept1",
+                "target": "concept2",
+                "relationship_type": "uses/is_part_of/improves/etc"
+            }}
+        ]
+    }}
+    
+    Focus on technical AI/ML concepts only. Identify between 5-15 concepts depending on content length and density.
+    
+    Content to analyze:
+    {text}
+    """
+    
+    try:
+        # Call Claude API
+        message = client.messages.create(
+            model="claude-3-haiku-20240307",
+            max_tokens=4000,
+            temperature=0,
+            system="You are an AI expert who specializes in extracting and organizing AI/ML concepts from technical content.",
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
+        
+        # Extract JSON from response
+        response_text = message.content[0].text
+        
+        # Try to parse the JSON
+        try:
+            # Find JSON in the response (might be wrapped in markdown code blocks)
+            json_pattern = r'```(?:json)?\s*([\s\S]*?)\s*```'
+            import re
+            json_match = re.search(json_pattern, response_text)
+            
+            if json_match:
+                json_str = json_match.group(1)
+                concepts_data = json.loads(json_str)
+            else:
+                # Try parsing the whole response as JSON
+                concepts_data = json.loads(response_text)
+                
+            # Validate the structure
+            if not isinstance(concepts_data, dict) or "concepts" not in concepts_data:
+                raise ValueError("Invalid JSON structure")
+                
+            return concepts_data
+            
+        except (json.JSONDecodeError, ValueError) as e:
+            logger.error(f"Failed to parse JSON from Claude: {str(e)}")
+            logger.debug(f"Claude response: {response_text}")
+            return {"concepts": [], "relationships": []}
+    
+    except Exception as e:
+        logger.error(f"Error calling Claude API: {str(e)}")
+        return {"concepts": [], "relationships": []}
+
+def store_concepts(content_id, source_type_id, concepts_data):
+    """
+    Store extracted concepts in the database
+    
+    Args:
+        content_id (int): ID of the content in ai_content table
+        source_type_id (int): Source type ID
+        concepts_data (dict): Dictionary containing concepts and relationships
+        
+    Returns:
+        bool: Success or failure
+    """
+    # Connect to database
+    conn = sqlite3.connect(config.DB_PATH)
+    cursor = conn.cursor()
+    
+    try:
+        # Check if concepts table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='concepts'")
+        has_concepts_table = cursor.fetchone() is not None
+        
+        # Create tables if they don't exist
+        if not has_concepts_table:
+            # Create concepts table
+            cursor.execute("""
+            CREATE TABLE concepts (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                description TEXT,
+                category TEXT,
+                UNIQUE(name)
+            )
+            """)
+            
+            # Create content_concepts table for many-to-many relationships
+            cursor.execute("""
+            CREATE TABLE content_concepts (
+                id INTEGER PRIMARY KEY,
+                content_id INTEGER,
+                concept_id INTEGER,
+                importance TEXT,
+                metadata TEXT,
+                UNIQUE(content_id, concept_id),
+                FOREIGN KEY(content_id) REFERENCES ai_content(id),
+                FOREIGN KEY(concept_id) REFERENCES concepts(id)
+            )
+            """)
+            
+            # Create concept relationships table
+            cursor.execute("""
+            CREATE TABLE concept_relationships (
+                id INTEGER PRIMARY KEY,
+                source_concept_id INTEGER,
+                target_concept_id INTEGER,
+                relationship_type TEXT,
+                UNIQUE(source_concept_id, target_concept_id, relationship_type),
+                FOREIGN KEY(source_concept_id) REFERENCES concepts(id),
+                FOREIGN KEY(target_concept_id) REFERENCES concepts(id)
+            )
+            """)
+            
+            logger.info("Created concepts tables")
+        
+        # Store each concept
+        concept_ids = {}
+        for concept in concepts_data.get("concepts", []):
+            name = concept.get("name", "").strip()
+            if not name:
+                continue
+                
+            # Check if concept already exists
+            cursor.execute("SELECT id FROM concepts WHERE name = ?", (name,))
+            result = cursor.fetchone()
+            
+            if result:
+                concept_id = result[0]
+            else:
+                # Insert new concept
+                cursor.execute("""
+                INSERT INTO concepts (name, description, category) 
+                VALUES (?, ?, ?)
+                """, (
+                    name,
+                    concept.get("description", ""),
+                    concept.get("category", "")
+                ))
+                concept_id = cursor.lastrowid
+            
+            concept_ids[name] = concept_id
+            
+            # Link concept to content
+            try:
+                cursor.execute("""
+                INSERT INTO content_concepts (content_id, concept_id, importance, metadata)
+                VALUES (?, ?, ?, ?)
+                """, (
+                    content_id,
+                    concept_id,
+                    concept.get("importance", "medium"),
+                    json.dumps({
+                        "related_concepts": concept.get("related_concepts", [])
+                    })
+                ))
+            except sqlite3.IntegrityError:
+                # Update existing link
+                cursor.execute("""
+                UPDATE content_concepts 
+                SET importance = ?, metadata = ?
+                WHERE content_id = ? AND concept_id = ?
+                """, (
+                    concept.get("importance", "medium"),
+                    json.dumps({
+                        "related_concepts": concept.get("related_concepts", [])
+                    }),
+                    content_id,
+                    concept_id
+                ))
+        
+        # Store relationships
+        for relationship in concepts_data.get("relationships", []):
+            source = relationship.get("source", "").strip()
+            target = relationship.get("target", "").strip()
+            rel_type = relationship.get("relationship_type", "related_to").strip()
+            
+            if not source or not target or source not in concept_ids or target not in concept_ids:
+                continue
+                
+            source_id = concept_ids[source]
+            target_id = concept_ids[target]
+            
+            try:
+                cursor.execute("""
+                INSERT INTO concept_relationships (source_concept_id, target_concept_id, relationship_type)
+                VALUES (?, ?, ?)
+                """, (source_id, target_id, rel_type))
+            except sqlite3.IntegrityError:
+                # Relationship already exists
+                pass
+        
+        # Update ai_content to mark as processed for concepts
+        cursor.execute("""
+        UPDATE ai_content 
+        SET metadata = json.set(metadata, '$.concepts_extracted', 1),
+            date_indexed = ?
+        WHERE id = ?
+        """, (datetime.now().isoformat(), content_id))
+        
+        conn.commit()
+        return True
+        
+    except Exception as e:
+        logger.error(f"Error storing concepts: {str(e)}")
+        conn.rollback()
+        return False
+        
+    finally:
+        conn.close()
+
+def process_unprocessed_content(limit=5, source_type=None):
+    """
+    Process content that hasn't had concepts extracted yet
+    
+    Args:
+        limit (int): Maximum number of items to process
+        source_type (str, optional): If provided, only process this type of content
+        
+    Returns:
+        int: Number of items processed
+    """
+    conn = sqlite3.connect(config.DB_PATH)
+    cursor = conn.cursor()
+    
+    try:
+        # Get source type IDs
+        source_type_map = {}
+        cursor.execute("SELECT id, name FROM source_types")
+        for row in cursor.fetchall():
+            source_type_map[row[1]] = row[0]
+        
+        # Build query
+        query = """
+        SELECT c.id, c.source_type_id, c.title, c.content, c.description, c.metadata
+        FROM ai_content c
+        WHERE 
+            (json_extract(c.metadata, '$.concepts_extracted') IS NULL OR 
+             json_extract(c.metadata, '$.concepts_extracted') = 0)
+            AND c.content IS NOT NULL AND length(c.content) > 100
+        """
+        
+        params = []
+        if source_type and source_type in source_type_map:
+            query += " AND c.source_type_id = ?"
+            params.append(source_type_map[source_type])
+        
+        query += " ORDER BY c.date_collected DESC LIMIT ?"
+        params.append(limit)
+        
+        cursor.execute(query, params)
+        items = cursor.fetchall()
+        
+        processed_count = 0
+        for item in items:
+            content_id, source_type_id, title, content, description, metadata_json = item
+            
+            # Determine source type name
+            source_type_name = next((name for name, id_val in source_type_map.items() if id_val == source_type_id), "unknown")
+            
+            # Parse metadata
+            try:
+                metadata = json.loads(metadata_json) if metadata_json else {}
+            except:
+                metadata = {}
+            
+            # Different handling based on content type
+            context = ""
+            if source_type_name == "github":
+                context = f"GitHub repository: {metadata.get('full_name', '')}"
+                # Use description for context if content is README
+                if description:
+                    context += f"\nDescription: {description}"
+                
+            elif source_type_name == "research_paper":
+                authors = metadata.get("authors", "")
+                year = metadata.get("year", "")
+                context = f"Authors: {authors}\nYear: {year}"
+                
+                # Use abstract for context if we're processing full text
+                if description and len(content) > len(description)*3:
+                    context += f"\nAbstract: {description[:500]}..."
+            
+            # Extract concepts
+            logger.info(f"Extracting concepts from {source_type_name} content: {title}")
+            concepts_data = extract_concepts_from_text(
+                content,
+                source_type_name,
+                title=title,
+                context=context
+            )
+            
+            # Store concepts
+            if concepts_data and concepts_data.get("concepts"):
+                logger.info(f"Found {len(concepts_data['concepts'])} concepts in {title}")
+                if store_concepts(content_id, source_type_id, concepts_data):
+                    processed_count += 1
+            else:
+                logger.warning(f"No concepts found in {title}")
+                # Mark as processed even if no concepts found
+                cursor.execute("""
+                UPDATE ai_content 
+                SET metadata = json.set(metadata, '$.concepts_extracted', 1),
+                    date_indexed = ?
+                WHERE id = ?
+                """, (datetime.now().isoformat(), content_id))
+                conn.commit()
+                processed_count += 1
+                
+            # Sleep to avoid rate limiting
+            time.sleep(2)
+        
+        return processed_count
+    
+    except Exception as e:
+        logger.error(f"Error processing content for concept extraction: {str(e)}")
+        return 0
+    
+    finally:
+        conn.close()
+
+if __name__ == "__main__":
+    # Process some content from each source type
+    for source in ["research_paper", "github", "instagram"]:
+        count = process_unprocessed_content(limit=3, source_type=source)
+        logger.info(f"Processed {count} items from {source}") 
+
+================================================================================
 File: config.py
 ================================================================================
 
@@ -730,15 +1576,41 @@ import os
 
 # Content sources configuration
 # Currently supports Instagram, with framework for adding more sources
-CONTENT_SOURCES = [
-    {"type": "instagram", "username": "rajistics", "private": False}
-    # Add more sources as needed
-    # {"type": "youtube", "channel_id": "CHANNEL_ID"},  # YouTube example
-    # {"type": "twitter", "username": "username"},  # Twitter example
-]
+CONTENT_SOURCES = {
+    'instagram': {
+        'enabled': True,
+        'accounts': [
+            'example_account1',
+            'example_account2',
+            'example_account3',
+        ]
+    },
+    'github': {
+        'enabled': True,
+        'rate_limit': 5000,  # GitHub API has a rate limit of 5000 requests per hour for authenticated requests
+        'max_repos_per_run': 10,
+        'api_token': '',  # Add your GitHub API token here to increase rate limits
+        'topics': [
+            'machine-learning',
+            'artificial-intelligence',
+            'deep-learning',
+            'data-science',
+            'nlp',
+            'computer-vision',
+            'reinforcement-learning'
+        ],
+        'repo_stars_minimum': 1000,  # Minimum number of stars for a repository to be considered
+        'cache_ttl_hours': 24  # How long to cache GitHub API results in hours
+    },
+    'research_papers': {
+        'enabled': True,
+        'max_papers_per_run': 10,
+        'sources': ['arxiv']  # Currently only supports ArXiv
+    }
+}
 
 # Instagram accounts list (for backward compatibility)
-INSTAGRAM_ACCOUNTS = [account for account in CONTENT_SOURCES if account["type"] == "instagram"]
+INSTAGRAM_ACCOUNTS = [account for account in CONTENT_SOURCES['instagram']['accounts']]
 
 # Instagram credentials (only needed for private accounts)
 # IMPORTANT: Add your Instagram credentials here to avoid 401 Unauthorized errors
@@ -748,15 +1620,23 @@ INSTAGRAM_ACCOUNTS = [account for account in CONTENT_SOURCES if account["type"] 
 INSTAGRAM_USERNAME = os.getenv("INSTAGRAM_USERNAME", "")
 INSTAGRAM_PASSWORD = os.getenv("INSTAGRAM_PASSWORD", "")
 
+# Instagram credentials in a dictionary format
+INSTAGRAM_CREDENTIALS = {
+    'username': INSTAGRAM_USERNAME,
+    'password': INSTAGRAM_PASSWORD
+}
+
 # Multiple Instagram accounts for rotation (to reduce rate limiting)
 # If using account rotation, populate this list with your accounts
 INSTAGRAM_ACCOUNT_ROTATION = {
-    "enabled": False,  # Disabled due to 2FA requirements
-    "accounts": [
-        {"username": "adi_ka_dusra_account", "password": "Ishaan07"},
-        {"username": "adi_khetarpal", "password": "vijne1-Xingir-pomcob"},
-        # Add your Instagram accounts here for rotation
-    ]
+    'enabled': False,  # Disabled due to 2FA requirements
+    'accounts': [
+        {'username': 'account1', 'password': 'password1', 'last_used': 0, 'failed_attempts': 0},
+        {'username': 'account2', 'password': 'password2', 'last_used': 0, 'failed_attempts': 0}
+    ],
+    'failure_threshold': 3,  # Number of consecutive failures before an account is marked for cooldown
+    'cooldown_hours': 24,    # Hours to wait before trying a failed account again
+    'min_rotation_interval': 10  # Minimum time in minutes between account rotations
 }
 
 # Proxy configuration
@@ -768,6 +1648,19 @@ PROXY_SERVERS = [
 
 # Configure if you want to use a specific country for proxies (US, UK, etc.)
 PROXY_COUNTRY = "us"  # Change as needed, or set to None for random
+
+# Proxy configuration in dict format
+PROXY_CONFIG = {
+    'enabled': True if PROXY_SERVERS else False,
+    'type': 'rotating',  # 'rotating' or 'fixed'
+    'test_url': 'https://geo.brdtest.com',
+    'protocol': 'http',  # 'http', 'https', 'socks4', 'socks5'
+    'host': 'brd.superproxy.io',
+    'port': 33335,
+    'username': 'brd-customer-hl_c7bff232-zone-residential_proxy1-country-us',
+    'password': 'w46vs0z46xmc',
+    'timeout': 10  # Seconds
+}
 
 # Claude API key for summarization
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
@@ -791,10 +1684,101 @@ DEBUG_MODE = True
 
 # Rate limiting settings (to avoid IP blocks)
 DOWNLOAD_DELAY = 10  # seconds between downloads (increased from 5 to reduce rate limiting)
-MAX_DOWNLOADS_PER_RUN = 2  # Maximum videos to download per run
+MAX_DOWNLOADS_PER_RUN = 3
 ACCOUNT_COOLDOWN_MINUTES = 60  # How long to wait before using an account again after a failure
 PROXY_COOLDOWN_MINUTES = 30  # How long to wait before using a proxy again after a failure
-RATE_LIMIT_WAIT = 3600  # Seconds to wait after hitting a rate limit 
+RATE_LIMIT_WAIT = 3600  # Seconds to wait after hitting a rate limit
+
+# Mistral transcription settings
+MISTRAL_CONFIG = {
+    'model_size': '7B',  # 7B, 16K
+    'device': 'cuda',    # 'cuda', 'cpu'
+    'max_duration': 600  # Maximum duration in seconds
+}
+
+# API Keys
+API_KEYS = {
+    'anthropic': 'your_anthropic_api_key',
+    'openai': 'your_openai_api_key',
+    'eleven_labs': 'your_eleven_labs_api_key'
+}
+
+# Web interface settings
+WEB_CONFIG = {
+    'host': '0.0.0.0',
+    'port': 5000,
+    'debug': True
+}
+
+# Rate limiting settings
+RATE_LIMIT = {
+    'enabled': True,
+    'max_requests_per_minute': 20,
+    'retry_after': 60  # seconds
+}
+
+# GitHub specific settings
+GITHUB_CONFIG = {
+    'target_repos': [
+        # Foundational ML/DL libraries
+        'tensorflow/tensorflow',
+        'pytorch/pytorch',
+        'scikit-learn/scikit-learn',
+        'huggingface/transformers',
+        'keras-team/keras',
+        
+        # LLM & Generative AI projects
+        'openai/whisper',
+        'facebookresearch/llama',
+        'anthropics/claude-api',
+        'google/gemma',
+        'mistralai/mistral-src',
+        
+        # Training & Infrastructure
+        'ray-project/ray',
+        'microsoft/DeepSpeed',
+        'google/jax',
+        
+        # Research implementations
+        'facebookresearch/fairseq',
+        'openai/CLIP',
+        'LAION-AI/Open-Assistant',
+        
+        # Learning resources
+        'datawhalechina/pumpkin-book',
+        'afshinea/stanford-cs-229-machine-learning',
+        'microsoft/ML-For-Beginners'
+    ],
+    'readme_max_length': 100000,  # Maximum length of README to store
+    'metadata_fields': [
+        'id', 'name', 'full_name', 'description', 'html_url', 
+        'stargazers_count', 'watchers_count', 'forks_count', 
+        'language', 'pushed_at', 'created_at', 'updated_at', 'topics'
+    ],
+    'update_frequency_days': 7,  # How often to update GitHub repository data
+} 
+
+# Research paper collection settings
+RESEARCH_PAPER_CONFIG = {
+    'topics': [
+        "large language models",
+        "diffusion models",
+        "transformers",
+        "generative ai",
+        "ai alignment",
+        "few-shot learning",
+        "multimodal ai",
+        "reinforcement learning",
+        "computer vision",
+        "natural language processing"
+    ],
+    'max_papers_per_topic': 5,
+    'max_age_days': 60,  # Only collect papers published within this timeframe
+    'update_frequency_days': 7,  # How often to update paper data
+    'pdf_extract': True,  # Whether to extract and store full PDF text
+    'download_directory': os.path.join(DATA_DIR, "papers", "pdfs"),
+    'max_papers_per_run': 15  # Maximum number of papers to process in a single run
+} 
 
 ================================================================================
 File: create_db.sql
@@ -861,6 +1845,320 @@ CREATE TRIGGER IF NOT EXISTS videos_au AFTER UPDATE ON videos BEGIN
 END; 
 
 ================================================================================
+File: db_migration.py
+================================================================================
+
+"""
+Database migration script for the Instagram Knowledge Base
+Adds GitHub-related tables and a unified content structure
+"""
+import os
+import sqlite3
+import logging
+import json
+from datetime import datetime
+
+from config import DATA_DIR, DB_PATH
+
+# Configure logging
+log_dir = os.path.join(DATA_DIR, 'logs')
+os.makedirs(log_dir, exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(os.path.join(log_dir, 'db_migration.log')),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger('db_migration')
+
+def migrate_database():
+    """
+    Migrate the database to support GitHub repositories and a unified content structure
+    
+    Returns:
+        Boolean indicating success
+    """
+    logger.info("Starting database migration")
+    
+    try:
+        # Connect to the database
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        # Check if videos table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='videos'")
+        has_videos_table = cursor.fetchone() is not None
+        
+        if not has_videos_table:
+            logger.error("Videos table does not exist in the database. Please initialize the database first.")
+            return False
+        
+        # Check if source_types table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='source_types'")
+        has_source_types_table = cursor.fetchone() is not None
+        
+        if not has_source_types_table:
+            logger.info("Creating source_types table")
+            cursor.execute("""
+            CREATE TABLE source_types (
+                id INTEGER PRIMARY KEY,
+                name TEXT UNIQUE NOT NULL,
+                description TEXT
+            )
+            """)
+            
+            # Insert initial source types
+            cursor.executemany(
+                "INSERT INTO source_types (id, name, description) VALUES (?, ?, ?)",
+                [
+                    (1, "instagram", "Instagram videos and posts"),
+                    (2, "github", "GitHub repositories"),
+                    (3, "research_paper", "Scientific research papers")
+                ]
+            )
+            logger.info("Added initial source types")
+        
+        # Check if github_repos table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='github_repos'")
+        has_github_repos_table = cursor.fetchone() is not None
+        
+        if not has_github_repos_table:
+            logger.info("Creating github_repos table")
+            cursor.execute("""
+            CREATE TABLE github_repos (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                full_name TEXT UNIQUE NOT NULL,
+                description TEXT,
+                url TEXT,
+                stars INTEGER DEFAULT 0,
+                watchers INTEGER DEFAULT 0,
+                forks INTEGER DEFAULT 0,
+                language TEXT,
+                last_push TEXT,
+                created_at TEXT,
+                updated_at TEXT,
+                topics TEXT,
+                readme TEXT,
+                last_crawled TEXT
+            )
+            """)
+            
+            # Create index on full_name
+            cursor.execute("CREATE INDEX idx_github_repos_full_name ON github_repos (full_name)")
+            cursor.execute("CREATE INDEX idx_github_repos_stars ON github_repos (stars)")
+            logger.info("Created github_repos table and indices")
+        
+        # Check if ai_content table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ai_content'")
+        has_ai_content_table = cursor.fetchone() is not None
+        
+        if not has_ai_content_table:
+            logger.info("Creating ai_content table for unified content")
+            cursor.execute("""
+            CREATE TABLE ai_content (
+                id INTEGER PRIMARY KEY,
+                source_type_id INTEGER NOT NULL,
+                source_id TEXT NOT NULL,
+                title TEXT,
+                description TEXT,
+                content TEXT,
+                url TEXT,
+                date_created TEXT,
+                date_collected TEXT,
+                metadata TEXT,
+                is_indexed INTEGER DEFAULT 0,
+                embedding_file TEXT,
+                FOREIGN KEY (source_type_id) REFERENCES source_types(id),
+                UNIQUE (source_type_id, source_id)
+            )
+            """)
+            
+            # Create indexes
+            cursor.execute("CREATE INDEX idx_ai_content_source ON ai_content (source_type_id, source_id)")
+            cursor.execute("CREATE INDEX idx_ai_content_is_indexed ON ai_content (is_indexed)")
+            logger.info("Created ai_content table and indices")
+        
+        # Check if research_papers table exists
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='research_papers'")
+        has_research_papers_table = cursor.fetchone() is not None
+        
+        if not has_research_papers_table:
+            logger.info("Creating research_papers table")
+            cursor.execute("""
+            CREATE TABLE research_papers (
+                id INTEGER PRIMARY KEY,
+                title TEXT NOT NULL,
+                authors TEXT,
+                abstract TEXT,
+                publication TEXT,
+                year INTEGER,
+                url TEXT,
+                doi TEXT UNIQUE,
+                pdf_path TEXT,
+                content TEXT,
+                last_crawled TEXT
+            )
+            """)
+            
+            # Create index on doi
+            cursor.execute("CREATE INDEX idx_research_papers_doi ON research_papers (doi)")
+            cursor.execute("CREATE INDEX idx_research_papers_year ON research_papers (year)")
+            logger.info("Created research_papers table and indices")
+        
+        # Migrate existing Instagram videos to ai_content if needed
+        if has_ai_content_table:
+            cursor.execute("SELECT COUNT(*) FROM ai_content WHERE source_type_id = 1")
+            instagram_count = cursor.fetchone()[0]
+            
+            if instagram_count == 0:
+                logger.info("Migrating existing Instagram videos to ai_content table")
+                
+                # Check the schema of the videos table
+                cursor.execute("PRAGMA table_info(videos)")
+                columns = {row[1]: row[0] for row in cursor.fetchall()}
+                
+                # Build the query based on available columns
+                select_cols = ["id", "shortcode"]
+                if "caption" in columns:
+                    select_cols.append("caption")
+                if "timestamp" in columns:
+                    select_cols.append("timestamp")
+                if "username" in columns:
+                    select_cols.append("username")
+                if "filepath" in columns:
+                    select_cols.append("filepath")
+                if "downloaded" in columns:
+                    select_cols.append("downloaded")
+                if "transcribed" in columns:
+                    select_cols.append("transcribed")
+                if "summarized" in columns:
+                    select_cols.append("summarized")
+                if "indexed" in columns:
+                    select_cols.append("indexed")
+                if "duration_seconds" in columns:
+                    select_cols.append("duration_seconds")
+                if "key_phrases" in columns:
+                    select_cols.append("key_phrases")
+                
+                # Build the query with an appropriate WHERE clause
+                query = f"SELECT {', '.join(select_cols)} FROM videos"
+                # Add WHERE clause only if downloaded column exists
+                if "downloaded" in columns:
+                    query += " WHERE downloaded = 1"
+                
+                logger.info(f"Running query: {query}")
+                
+                # Get all videos
+                cursor.execute(query)
+                videos = cursor.fetchall()
+                
+                # Get Instagram source type ID
+                source_type_id = 1  # Instagram
+                
+                for video in videos:
+                    # Create a dictionary to hold values with appropriate defaults
+                    video_data = {}
+                    for i, col in enumerate(select_cols):
+                        video_data[col] = video[i]
+                    
+                    # Extract required values with defaults
+                    video_id = video_data.get("id")
+                    shortcode = video_data.get("shortcode")
+                    caption = video_data.get("caption", "")
+                    timestamp = video_data.get("timestamp")
+                    username = video_data.get("username", "unknown")
+                    filepath = video_data.get("filepath", "")
+                    downloaded = video_data.get("downloaded", 1)
+                    transcribed = video_data.get("transcribed", 0)
+                    summarized = video_data.get("summarized", 0)
+                    indexed = video_data.get("indexed", 0)
+                    duration_seconds = video_data.get("duration_seconds", 0)
+                    key_phrases = video_data.get("key_phrases", "")
+                    
+                    # Create metadata
+                    metadata = {
+                        'username': username,
+                        'shortcode': shortcode,
+                        'duration_seconds': duration_seconds or 0,
+                        'key_phrases': key_phrases or ''
+                    }
+                    
+                    # Get content (transcript or summary) if available
+                    content = None
+                    if summarized == 1:
+                        # Try to get summary
+                        cursor.execute("SELECT summary FROM summaries WHERE video_id = ?", (video_id,))
+                        summary_row = cursor.fetchone()
+                        if summary_row:
+                            content = summary_row[0]
+                    
+                    if not content and transcribed == 1:
+                        # Try to get transcript
+                        cursor.execute("SELECT transcript FROM transcripts WHERE video_id = ?", (video_id,))
+                        transcript_row = cursor.fetchone()
+                        if transcript_row:
+                            content = transcript_row[0]
+                    
+                    # Insert into ai_content
+                    try:
+                        cursor.execute("""
+                        INSERT INTO ai_content (
+                            source_type_id, source_id, title, description, content,
+                            url, date_created, date_collected, metadata, is_indexed
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            source_type_id,
+                            video_id,
+                            f"Instagram video from {username}",
+                            caption or "",
+                            content or "",
+                            f"https://www.instagram.com/p/{shortcode}/" if shortcode else "",
+                            datetime.now().isoformat(),
+                            datetime.now().isoformat(),
+                            json.dumps(metadata),
+                            1 if indexed == 1 else 0
+                        ))
+                    except sqlite3.IntegrityError:
+                        # Skip duplicates
+                        logger.warning(f"Skipping duplicate video {video_id} during migration")
+                    except Exception as e:
+                        logger.error(f"Error migrating video {video_id}: {str(e)}")
+                
+                logger.info(f"Migrated {len(videos)} Instagram videos to ai_content table")
+        
+        # Commit changes
+        conn.commit()
+        logger.info("Database migration completed successfully")
+        
+        # Close connection
+        conn.close()
+        return True
+    
+    except Exception as e:
+        logger.error(f"Error during database migration: {str(e)}")
+        
+        # Try to rollback
+        try:
+            conn.rollback()
+        except:
+            pass
+        
+        # Close connection
+        try:
+            conn.close()
+        except:
+            pass
+        
+        return False
+
+if __name__ == "__main__":
+    migrate_database() 
+
+================================================================================
 File: downloader.py
 ================================================================================
 
@@ -874,6 +2172,7 @@ import logging
 import random
 from datetime import datetime, timedelta
 import instaloader
+import sqlite3
 
 # Add imports for proxy testing
 import requests
@@ -898,7 +2197,12 @@ from config import (
     MAX_DOWNLOADS_PER_RUN,
     DATA_DIR,
     ACCOUNT_COOLDOWN_MINUTES,
-    PROXY_COOLDOWN_MINUTES
+    PROXY_COOLDOWN_MINUTES,
+    DB_PATH,
+    INSTAGRAM_CREDENTIALS,
+    PROXY_CONFIG,
+    RATE_LIMIT_WAIT,
+    CONTENT_SOURCES
 )
 
 # Configure logging
@@ -906,12 +2210,13 @@ logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('downloader.log'),
+        logging.FileHandler(os.path.join(DATA_DIR, 'logs', 'downloader.log')),
         logging.StreamHandler()
     ]
 )
 logger = logging.getLogger('downloader')
 
+# Account state tracking
 def setup_directories():
     """Create necessary directories if they don't exist"""
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
@@ -1768,6 +3073,472 @@ if __name__ == "__main__":
     download_from_instagram() 
 
 ================================================================================
+File: github_collector.py
+================================================================================
+
+"""
+GitHub Repository Collector Module
+Collects and processes AI/ML repositories from GitHub for the knowledge base
+"""
+import os
+import json
+import logging
+import time
+import base64
+import sqlite3
+import requests
+from datetime import datetime, timedelta
+import config
+
+# Configure logging
+log_dir = os.path.join(config.DATA_DIR, 'logs')
+os.makedirs(log_dir, exist_ok=True)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(os.path.join(log_dir, 'github_collector.log')),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger('github_collector')
+
+# List of repositories to collect (used as fallback if search doesn't yield enough results)
+GITHUB_REPOS = [
+    # Foundational ML/DL libraries
+    'tensorflow/tensorflow',
+    'pytorch/pytorch',
+    'scikit-learn/scikit-learn',
+    'huggingface/transformers',
+    'keras-team/keras',
+    
+    # LLM & generative AI projects
+    'openai/whisper',
+    'facebookresearch/llama',
+    'anthropics/claude-api',
+    'google/gemma',
+    'mistralai/mistral-src',
+    
+    # Training & infrastructure tools
+    'ray-project/ray',
+    'microsoft/DeepSpeed',
+    'google/jax',
+    
+    # Research implementations
+    'facebookresearch/fairseq',
+    'openai/CLIP',
+    'LAION-AI/Open-Assistant',
+    
+    # Learning resources
+    'datawhalechina/pumpkin-book',
+    'afshinea/stanford-cs-229-machine-learning',
+    'microsoft/ML-For-Beginners'
+]
+
+def get_github_session():
+    """Create a requests session with GitHub API token if available"""
+    session = requests.Session()
+    
+    # Add GitHub API token if available
+    github_token = config.GITHUB_CONFIG.get('api_token', '')
+    if github_token:
+        session.headers.update({
+            'Authorization': f'token {github_token}',
+            'Accept': 'application/vnd.github.v3+json'
+        })
+    else:
+        session.headers.update({
+            'Accept': 'application/vnd.github.v3+json'
+        })
+    
+    # Set user agent
+    session.headers.update({
+        'User-Agent': 'AI-Knowledge-Base-Collector/1.0'
+    })
+    
+    return session
+
+def get_rate_limit_info(session):
+    """Get the current GitHub API rate limit information"""
+    try:
+        response = session.get('https://api.github.com/rate_limit')
+        if response.status_code == 200:
+            data = response.json()
+            core = data.get('resources', {}).get('core', {})
+            remaining = core.get('remaining', 0)
+            reset_timestamp = core.get('reset', 0)
+            reset_time = datetime.fromtimestamp(reset_timestamp)
+            
+            logger.info(f"GitHub API rate limit: {remaining} requests remaining, resets at {reset_time}")
+            return remaining, reset_time
+        else:
+            logger.warning(f"Failed to get rate limit info: {response.status_code}")
+            return None, None
+    except Exception as e:
+        logger.error(f"Error getting rate limit info: {str(e)}")
+        return None, None
+
+def wait_for_rate_limit(session):
+    """Check rate limit and wait if necessary"""
+    remaining, reset_time = get_rate_limit_info(session)
+    
+    if remaining is None or reset_time is None:
+        # If we can't get rate limit info, wait a conservative amount of time
+        logger.warning("Could not get rate limit info, waiting 60 seconds")
+        time.sleep(60)
+        return
+    
+    if remaining <= 10:  # Keep a small buffer
+        now = datetime.now()
+        wait_seconds = (reset_time - now).total_seconds() + 5  # Add a small buffer
+        
+        if wait_seconds > 0:
+            logger.warning(f"Rate limit almost reached. Waiting {wait_seconds:.1f} seconds until reset")
+            time.sleep(wait_seconds)
+        else:
+            # If the reset time is in the past, wait a bit anyway
+            logger.warning("Rate limit reset time is in the past, waiting 10 seconds as precaution")
+            time.sleep(10)
+
+def search_github_repos(session, topics, min_stars=1000, per_page=30, max_results=100):
+    """Search for repositories based on topics and minimum stars"""
+    repos = []
+    topic_query = ' '.join([f'topic:{topic}' for topic in topics])
+    query = f"{topic_query} stars:>={min_stars}"
+    
+    logger.info(f"Searching GitHub with query: {query}")
+    
+    page = 1
+    while len(repos) < max_results:
+        wait_for_rate_limit(session)
+        
+        try:
+            response = session.get(
+                'https://api.github.com/search/repositories',
+                params={
+                    'q': query,
+                    'sort': 'stars',
+                    'order': 'desc',
+                    'per_page': per_page,
+                    'page': page
+                }
+            )
+            
+            if response.status_code != 200:
+                logger.error(f"GitHub search API returned error: {response.status_code} - {response.text}")
+                break
+                
+            data = response.json()
+            items = data.get('items', [])
+            
+            if not items:
+                break
+                
+            repos.extend(items)
+            total_count = data.get('total_count', 0)
+            logger.info(f"Found {len(repos)}/{total_count} repositories (page {page})")
+            
+            if len(repos) >= max_results:
+                logger.info(f"Reached maximum results limit of {max_results}")
+                break
+                
+            # Check if we've reached the last page
+            if len(items) < per_page:
+                break
+                
+            page += 1
+            
+            # Add a small delay between requests
+            time.sleep(2)
+            
+        except Exception as e:
+            logger.error(f"Error searching GitHub repositories: {str(e)}")
+            break
+    
+    return repos[:max_results]
+
+def get_repo_info(session, repo_full_name):
+    """Get detailed information about a repository"""
+    wait_for_rate_limit(session)
+    
+    try:
+        logger.info(f"Getting info for repository: {repo_full_name}")
+        response = session.get(f'https://api.github.com/repos/{repo_full_name}')
+        
+        if response.status_code != 200:
+            logger.error(f"GitHub API returned error for {repo_full_name}: {response.status_code} - {response.text}")
+            return None
+            
+        return response.json()
+    except Exception as e:
+        logger.error(f"Error getting repository info for {repo_full_name}: {str(e)}")
+        return None
+
+def get_repo_readme(session, repo_full_name):
+    """Get repository README content"""
+    wait_for_rate_limit(session)
+    
+    try:
+        logger.info(f"Getting README for repository: {repo_full_name}")
+        response = session.get(f'https://api.github.com/repos/{repo_full_name}/readme')
+        
+        if response.status_code != 200:
+            logger.warning(f"Could not find README for {repo_full_name}: {response.status_code}")
+            return None
+            
+        data = response.json()
+        content = data.get('content', '')
+        encoding = data.get('encoding', 'base64')
+        
+        if content and encoding == 'base64':
+            readme_content = base64.b64decode(content).decode('utf-8', errors='replace')
+            
+            # Limit readme length if necessary
+            max_length = config.GITHUB_CONFIG.get('readme_max_length', 100000)
+            if len(readme_content) > max_length:
+                readme_content = readme_content[:max_length] + "... [truncated]"
+                
+            return readme_content
+        
+        return None
+    except Exception as e:
+        logger.error(f"Error getting README for {repo_full_name}: {str(e)}")
+        return None
+
+def should_update_repo(conn, repo_full_name):
+    """Check if a repository should be updated based on last crawl time"""
+    cursor = conn.cursor()
+    
+    try:
+        # Check if the repo exists in the database
+        cursor.execute("SELECT last_crawled FROM github_repos WHERE full_name = ?", (repo_full_name,))
+        result = cursor.fetchone()
+        
+        if not result:
+            # Repository not in database, should add it
+            return True
+            
+        last_crawled = result[0]
+        if not last_crawled:
+            return True
+            
+        # Convert string to datetime
+        last_crawled_dt = datetime.fromisoformat(last_crawled.replace('Z', '+00:00'))
+        
+        # Check if it's time to update
+        update_frequency_days = config.GITHUB_CONFIG.get('update_frequency_days', 7)
+        update_threshold = datetime.now() - timedelta(days=update_frequency_days)
+        
+        return last_crawled_dt < update_threshold
+        
+    except Exception as e:
+        logger.error(f"Error checking if repo {repo_full_name} should be updated: {str(e)}")
+        return True
+
+def store_repo_in_db(conn, repo_data, readme):
+    """Store repository information in the database"""
+    cursor = conn.cursor()
+    
+    try:
+        # Extract fields to store
+        repo_full_name = repo_data.get('full_name')
+        
+        # Check if repo exists in database
+        cursor.execute("SELECT id FROM github_repos WHERE full_name = ?", (repo_full_name,))
+        existing_repo = cursor.fetchone()
+        
+        # Prepare data for insertion/update
+        repo_values = {
+            'id': repo_data.get('id'),
+            'name': repo_data.get('name'),
+            'full_name': repo_full_name,
+            'description': repo_data.get('description') or '',
+            'url': repo_data.get('html_url'),
+            'stars': repo_data.get('stargazers_count', 0),
+            'watchers': repo_data.get('watchers_count', 0),
+            'forks': repo_data.get('forks_count', 0),
+            'language': repo_data.get('language') or '',
+            'last_push': repo_data.get('pushed_at'),
+            'created_at': repo_data.get('created_at'),
+            'updated_at': repo_data.get('updated_at'),
+            'topics': json.dumps(repo_data.get('topics', [])),
+            'readme': readme or '',
+            'last_crawled': datetime.now().isoformat()
+        }
+        
+        if existing_repo:
+            # Update existing repo
+            placeholders = ', '.join([f"{key} = ?" for key in repo_values.keys()])
+            query = f"UPDATE github_repos SET {placeholders} WHERE full_name = ?"
+            values = list(repo_values.values()) + [repo_full_name]
+            cursor.execute(query, values)
+            logger.info(f"Updated repository {repo_full_name} in database")
+            
+            # Get the repo ID for ai_content relation
+            repo_id = existing_repo[0]
+        else:
+            # Insert new repo
+            placeholders = ', '.join(['?'] * len(repo_values))
+            columns = ', '.join(repo_values.keys())
+            query = f"INSERT INTO github_repos ({columns}) VALUES ({placeholders})"
+            cursor.execute(query, list(repo_values.values()))
+            logger.info(f"Added new repository {repo_full_name} to database")
+            
+            # Get the inserted repo ID
+            repo_id = cursor.lastrowid
+        
+        # Add entry to ai_content table
+        content_values = {
+            'title': repo_data.get('name'),
+            'description': repo_data.get('description') or '',
+            'content': readme or '',
+            'source_type_id': 2,  # 2 = GitHub
+            'source_id': str(repo_id),
+            'url': repo_data.get('html_url'),
+            'date_created': repo_data.get('created_at'),
+            'date_collected': datetime.now().isoformat(),
+            'metadata': json.dumps({
+                'stars': repo_data.get('stargazers_count', 0),
+                'language': repo_data.get('language') or '',
+                'topics': repo_data.get('topics', []),
+                'forks': repo_data.get('forks_count', 0)
+            })
+        }
+        
+        # Check if content already exists
+        cursor.execute(
+            "SELECT id FROM ai_content WHERE source_type_id = 2 AND source_id = ?", 
+            (str(repo_id),)
+        )
+        existing_content = cursor.fetchone()
+        
+        if existing_content:
+            # Update existing content
+            placeholders = ', '.join([f"{key} = ?" for key in content_values.keys()])
+            query = f"UPDATE ai_content SET {placeholders} WHERE source_type_id = 2 AND source_id = ?"
+            values = list(content_values.values()) + [str(repo_id)]
+            cursor.execute(query, values)
+        else:
+            # Insert new content
+            placeholders = ', '.join(['?'] * len(content_values))
+            columns = ', '.join(content_values.keys())
+            query = f"INSERT INTO ai_content ({columns}) VALUES ({placeholders})"
+            cursor.execute(query, list(content_values.values()))
+        
+        conn.commit()
+        return True
+        
+    except Exception as e:
+        conn.rollback()
+        logger.error(f"Error storing repository {repo_data.get('full_name')} in database: {str(e)}")
+        return False
+
+def collect_github_repos(max_repos=None):
+    """
+    Main function to collect GitHub repositories
+    Returns the number of successfully processed repositories
+    """
+    # Check if GitHub collection is enabled
+    if not config.CONTENT_SOURCES.get('github', {}).get('enabled', False):
+        logger.info("GitHub collection is disabled in configuration")
+        return 0
+    
+    # Create necessary directories
+    os.makedirs(config.DATA_DIR, exist_ok=True)
+    os.makedirs(os.path.join(config.DATA_DIR, 'logs'), exist_ok=True)
+    
+    # Connect to database
+    conn = sqlite3.connect(config.DB_PATH)
+    
+    # Initialize session
+    session = get_github_session()
+    
+    # Set default max_repos if not specified
+    if max_repos is None:
+        max_repos = config.CONTENT_SOURCES.get('github', {}).get('max_repos_per_run', 10)
+    
+    success_count = 0
+    
+    try:
+        # Check rate limits first
+        remaining, reset_time = get_rate_limit_info(session)
+        if remaining is not None and remaining < max_repos * 3:  # Each repo might need multiple API calls
+            logger.warning(f"Only {remaining} API requests remaining before rate limit reset, which might not be enough")
+        
+        # Get repositories to process
+        repos_to_process = []
+        
+        # First try to use the search API
+        topics = config.CONTENT_SOURCES.get('github', {}).get('topics', ['machine-learning', 'deep-learning'])
+        min_stars = config.CONTENT_SOURCES.get('github', {}).get('repo_stars_minimum', 1000)
+        
+        search_results = search_github_repos(
+            session=session,
+            topics=topics,
+            min_stars=min_stars,
+            max_results=max_repos
+        )
+        
+        # Extract repo full names from search results
+        for repo in search_results:
+            if repo.get('full_name'):
+                repos_to_process.append(repo.get('full_name'))
+        
+        # If we didn't get enough repos from search, add from the predefined list
+        if len(repos_to_process) < max_repos:
+            remaining_count = max_repos - len(repos_to_process)
+            for repo in GITHUB_REPOS:
+                if repo not in repos_to_process and len(repos_to_process) < max_repos:
+                    repos_to_process.append(repo)
+        
+        # Process repositories
+        logger.info(f"Processing {len(repos_to_process)} repositories")
+        
+        for i, repo_full_name in enumerate(repos_to_process):
+            logger.info(f"Processing repository {i+1}/{len(repos_to_process)}: {repo_full_name}")
+            
+            # Check if we need to update this repository
+            if not should_update_repo(conn, repo_full_name):
+                logger.info(f"Skipping {repo_full_name} - recently updated")
+                continue
+            
+            # Get repository information
+            repo_data = get_repo_info(session, repo_full_name)
+            if not repo_data:
+                logger.warning(f"Could not get information for {repo_full_name}, skipping")
+                continue
+            
+            # Get repository README
+            readme = get_repo_readme(session, repo_full_name)
+            
+            # Store in database
+            if store_repo_in_db(conn, repo_data, readme):
+                success_count += 1
+            
+            # Add a delay between repositories
+            time.sleep(2)
+            
+            # Check if we've reached the maximum
+            if success_count >= max_repos:
+                logger.info(f"Reached maximum repository limit of {max_repos}")
+                break
+        
+        logger.info(f"GitHub collection completed. Successfully processed {success_count}/{len(repos_to_process)} repositories")
+        
+    except Exception as e:
+        logger.error(f"Error in GitHub collection process: {str(e)}")
+    
+    finally:
+        # Close database connection
+        conn.close()
+    
+    return success_count
+
+if __name__ == "__main__":
+    collect_github_repos() 
+
+================================================================================
 File: indexer.py
 ================================================================================
 
@@ -2132,136 +3903,9 @@ if __name__ == "__main__":
 File: README.md
 ================================================================================
 
-# Instagram Knowledge Base
+# Instagram-Scraper
+Instagram scraper that i created to pass through instagram's strict rate limiting using cheeky tricks
 
-A comprehensive solution for building a personal knowledge base from Instagram videos. This system downloads videos from Instagram accounts, transcribes them using OpenAI's Whisper, summarizes them using Claude, and makes them searchable through a web interface.
-
-## Features
-
-- **Multi-account support**: Configure multiple Instagram accounts in the config file
-- **Metadata extraction**: Stores engagement metrics, hashtags, captions, and timestamps
-- **AI-powered summarization**: Generate concise summaries of video transcripts using Claude
-- **Full-text search**: Find specific content across all transcripts and summaries
-- **Prioritized search results**: Results from summaries and captions are prioritized over full transcripts
-- **Filter capabilities**: Filter by account, hashtag, or date
-- **Visualization**: Statistics dashboard to explore your content collection
-- **Rate limiting**: Respectful downloading with exponential backoff to avoid IP blocks
-- **Modular design**: Run individual components as needed
-- **Performance optimization**: Caching for frequently accessed data
-- **Resilient downloads**: Robust retry mechanism with exponential backoff
-
-## Requirements
-
-- Python 3.8+
-- FFmpeg (for audio extraction)
-- Instagram account (for accessing content)
-- Anthropic API key (for Claude summarization)
-
-## Installation
-
-1. Clone this repository
-2. Install dependencies:
-
-```bash
-pip install -r requirements.txt
-```
-
-3. Install FFmpeg if not already installed (system dependent):
-   - Ubuntu/Debian: `sudo apt-get install ffmpeg`
-   - macOS: `brew install ffmpeg`
-   - Windows: Download from [ffmpeg.org](https://ffmpeg.org/download.html)
-
-## Configuration
-
-1. Edit `config.py` to add Instagram accounts you have permission to access
-2. Set environment variables:
-   ```bash
-   # For Instagram authentication (strongly recommended)
-   export INSTAGRAM_USERNAME="your_username"
-   export INSTAGRAM_PASSWORD="your_password"
-   
-   # For Claude summarization
-   export ANTHROPIC_API_KEY="your_anthropic_api_key"
-   ```
-   - For Windows, use `set` instead of `export`
-   - For production, consider using a `.env` file with python-dotenv
-
-## Usage
-
-### Running the Complete Pipeline
-
-Run all steps (download, transcribe, summarize, index, web):
-
-```bash
-python run.py --all
-```
-
-### Running Individual Components
-
-Download videos:
-```bash
-python run.py --download
-```
-
-Transcribe videos:
-```bash
-python run.py --transcribe
-```
-
-Summarize transcripts using Claude:
-```bash
-python run.py --summarize
-```
-
-Index transcripts and summaries:
-```bash
-python run.py --index
-```
-
-Start the web interface:
-```bash
-python run.py --web
-```
-
-## Accessing the Web Interface
-
-Once running, access the web interface at:
-```
-http://localhost:5000
-```
-
-## Advanced Features
-
-### Transcript Summarization
-
-The system now includes Claude-powered summarization that:
-- Generates concise summaries (150-200 words) for each video transcript
-- Highlights key insights and actionable information
-- Implements efficient batch processing to respect API rate limits
-- Caches summaries to avoid redundant API calls
-- Enhances search by prioritizing matches in summaries
-
-### Performance Optimizations
-
-- **LRU Caching**: Frequently accessed data is cached to reduce database load
-- **Improved Indexing**: Better database schema with optimized indices for common query patterns
-- **Enhanced Search**: Prioritized search results with highlighted matches
-- **Resilient Downloads**: Smart retry with exponential backoff for more reliable downloads
-
-### Content Analytics
-
-The system tracks:
-- Word count for each transcript
-- Video duration (when available)
-- Key content metrics accessible through the statistics dashboard
-
-## Ethical Usage
-
-This tool is for personal use only, with content you have permission to access. Always respect copyright and terms of service for the platforms you use.
-
-## License
-
-MIT License 
 
 ================================================================================
 File: run.py
@@ -2282,6 +3926,16 @@ import transcriber
 import indexer
 import summarizer
 from app import app
+
+# Import the new modules
+try:
+    import db_migration
+    import github_collector
+    import arxiv_collector
+    import concept_extractor
+    has_additional_modules = True
+except ImportError:
+    has_additional_modules = False
 
 # Configure logging
 logging.basicConfig(
@@ -2331,6 +3985,67 @@ def run_web_interface():
     logger.info("Starting web interface")
     app.run(host='0.0.0.0', port=5000)
 
+def run_db_migration():
+    """Run database migration to support multiple content sources"""
+    if not has_additional_modules:
+        logger.error("Database migration module not available")
+        return
+    
+    logger.info("Starting database migration")
+    start_time = time()
+    success = db_migration.migrate_database()
+    
+    if success:
+        logger.info(f"Database migration completed in {time() - start_time:.2f} seconds")
+    else:
+        logger.error(f"Database migration failed after {time() - start_time:.2f} seconds")
+
+def run_github_collector(max_repos=None):
+    """Run GitHub repository collection"""
+    if not has_additional_modules:
+        logger.error("GitHub collector module not available")
+        return
+    
+    logger.info("Starting GitHub repository collection")
+    start_time = time()
+    success_count = github_collector.collect_github_repos(max_repos=max_repos)
+    logger.info(f"GitHub collection completed in {time() - start_time:.2f} seconds, processed {success_count} repositories")
+
+def run_papers_collector(max_papers=None, force_update=False):
+    """Run ArXiv research paper collection"""
+    if not has_additional_modules:
+        logger.error("ArXiv collector module not available")
+        return
+    
+    logger.info("Starting ArXiv research paper collection")
+    start_time = time()
+    papers_added = arxiv_collector.collect_papers(max_papers=max_papers, force_update=force_update)
+    logger.info(f"ArXiv collection completed in {time() - start_time:.2f} seconds, added {papers_added} new papers")
+
+def run_concept_extractor(limit=None, source_type=None):
+    """Run concept extraction on content"""
+    if not has_additional_modules:
+        logger.error("Concept extractor module not available")
+        return
+    
+    logger.info("Starting concept extraction")
+    start_time = time()
+    
+    if source_type:
+        logger.info(f"Processing {limit or 'all'} items from source type: {source_type}")
+        processed = concept_extractor.process_unprocessed_content(limit=limit or 5, source_type=source_type)
+        logger.info(f"Processed {processed} items from {source_type}")
+    else:
+        # Process some content from each source type
+        total_processed = 0
+        for src_type in ["research_paper", "github", "instagram"]:
+            logger.info(f"Processing source type: {src_type}")
+            processed = concept_extractor.process_unprocessed_content(limit=limit or 3, source_type=src_type)
+            logger.info(f"Processed {processed} items from {src_type}")
+            total_processed += processed
+        
+        logger.info(f"Concept extraction completed in {time() - start_time:.2f} seconds, processed {total_processed} items")
+
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(description='Instagram Knowledge Base')
@@ -2340,6 +4055,19 @@ def main():
     parser.add_argument('--index', action='store_true', help='Run the indexer module')
     parser.add_argument('--web', action='store_true', help='Run the web interface')
     parser.add_argument('--all', action='store_true', help='Run the complete pipeline')
+    
+    # Add new arguments for additional modules
+    if has_additional_modules:
+        parser.add_argument('--migrate', action='store_true', help='Run database migration')
+        parser.add_argument('--github', action='store_true', help='Run GitHub repository collection')
+        parser.add_argument('--github-max', type=int, help='Maximum number of GitHub repositories to collect')
+        parser.add_argument('--papers', action='store_true', help='Run ArXiv research paper collection')
+        parser.add_argument('--papers-max', type=int, help='Maximum number of papers to collect')
+        parser.add_argument('--force-update', action='store_true', help='Force update of existing content')
+        parser.add_argument('--concepts', action='store_true', help='Run AI concept extraction')
+        parser.add_argument('--concepts-limit', type=int, help='Maximum number of items to process for concept extraction')
+        parser.add_argument('--concepts-source', choices=['research_paper', 'github', 'instagram'], 
+                            help='Only extract concepts from this source type')
     
     args = parser.parse_args()
     
@@ -2359,11 +4087,37 @@ def main():
     if args.all or args.index:
         run_indexer()
     
+    # Run new modules if available
+    if has_additional_modules:
+        if args.all or args.migrate:
+            run_db_migration()
+        
+        if args.all or args.github:
+            max_repos = args.github_max if hasattr(args, 'github_max') else None
+            run_github_collector(max_repos=max_repos)
+            
+        if args.all or args.papers:
+            max_papers = args.papers_max if hasattr(args, 'papers_max') else None
+            force_update = args.force_update if hasattr(args, 'force_update') else False
+            run_papers_collector(max_papers=max_papers, force_update=force_update)
+            
+        if args.all or args.concepts:
+            limit = args.concepts_limit if hasattr(args, 'concepts_limit') else None
+            source_type = args.concepts_source if hasattr(args, 'concepts_source') else None
+            run_concept_extractor(limit=limit, source_type=source_type)
+    
     if args.all or args.web:
         run_web_interface()
     
     # If no arguments provided, show help
-    if not (args.download or args.transcribe or args.summarize or args.index or args.web or args.all):
+    no_args = not (args.download or args.transcribe or args.summarize or 
+                  args.index or args.web or args.all)
+    
+    # Check for new arguments if modules are available
+    if has_additional_modules:
+        no_args = no_args and not (args.migrate or args.github or args.papers or args.concepts)
+    
+    if no_args:
         parser.print_help()
 
 if __name__ == "__main__":
