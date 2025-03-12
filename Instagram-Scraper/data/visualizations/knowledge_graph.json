@@ -1,0 +1,986 @@
+{
+  "nodes": [
+    {
+      "id": 1,
+      "name": "language model",
+      "category": "model",
+      "reference_count": 2,
+      "description": "A statistical model that learns patterns from text data to generate human-like language."
+    },
+    {
+      "id": 2,
+      "name": "self-correction",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "The ability of a language model to revise and improve its own outputs."
+    },
+    {
+      "id": 3,
+      "name": "iterative fine-tuning",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "A process of repeatedly fine-tuning a model on its own generated outputs to improve performance."
+    },
+    {
+      "id": 4,
+      "name": "self-taught self-correction (stasc)",
+      "category": "algorithm",
+      "reference_count": 1,
+      "description": "An algorithm that enables language models to learn self-correction through iterative fine-tuning on self-generated data."
+    },
+    {
+      "id": 5,
+      "name": "small language model (slm)",
+      "category": "model",
+      "reference_count": 1,
+      "description": "A language model with relatively fewer parameters compared to large language models."
+    },
+    {
+      "id": 6,
+      "name": "question answering",
+      "category": "task",
+      "reference_count": 1,
+      "description": "A natural language processing task where a system answers questions based on given context."
+    },
+    {
+      "id": 7,
+      "name": "natural questions dataset",
+      "category": "dataset",
+      "reference_count": 1,
+      "description": "A dataset containing factual questions and their answers."
+    },
+    {
+      "id": 8,
+      "name": "novel view synthesis",
+      "category": "Technique",
+      "reference_count": 1,
+      "description": "Generating new viewpoints of a scene or object from a single or few input images."
+    },
+    {
+      "id": 9,
+      "name": "diffusion model",
+      "category": "Model",
+      "reference_count": 1,
+      "description": "A type of generative model that learns to reverse a diffusion process to generate data."
+    },
+    {
+      "id": 10,
+      "name": "depth estimation",
+      "category": "Technique",
+      "reference_count": 1,
+      "description": "Predicting the depth or 3D structure of a scene from 2D image(s)."
+    },
+    {
+      "id": 11,
+      "name": "3d reconstruction",
+      "category": "Technique",
+      "reference_count": 1,
+      "description": "Creating 3D models or representations from 2D image data."
+    },
+    {
+      "id": 12,
+      "name": "image warping",
+      "category": "Technique",
+      "reference_count": 1,
+      "description": "Transforming an image based on a mapping between source and destination coordinates."
+    },
+    {
+      "id": 13,
+      "name": "point cloud",
+      "category": "Data Representation",
+      "reference_count": 1,
+      "description": "A set of data points in 3D space representing the geometry of an object or scene."
+    },
+    {
+      "id": 14,
+      "name": "transformer",
+      "category": "framework",
+      "reference_count": 3,
+      "description": "A library providing thousands of pretrained models for natural language processing, computer vision, and audio tasks."
+    },
+    {
+      "id": 15,
+      "name": "pretrained models",
+      "category": "model",
+      "reference_count": 1,
+      "description": "Machine learning models that have been trained on large datasets."
+    },
+    {
+      "id": 16,
+      "name": "natural language processing (nlp)",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "A field of AI focused on analyzing, understanding, and generating human language data."
+    },
+    {
+      "id": 17,
+      "name": "computer vision",
+      "category": "technique",
+      "reference_count": 2,
+      "description": "A field of AI focused on analyzing and understanding digital images and videos."
+    },
+    {
+      "id": 18,
+      "name": "audio processing",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "A field focused on analyzing and understanding audio signals like speech and music."
+    },
+    {
+      "id": 19,
+      "name": "transfer learning",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "A technique of using a pretrained model as a starting point for a new task."
+    },
+    {
+      "id": 20,
+      "name": "pytorch",
+      "category": "framework",
+      "reference_count": 4,
+      "description": "A deep learning library used for building and training models."
+    },
+    {
+      "id": 21,
+      "name": "tensorflow",
+      "category": "framework",
+      "reference_count": 3,
+      "description": "A deep learning library used for building and training models."
+    },
+    {
+      "id": 22,
+      "name": "jax",
+      "category": "framework",
+      "reference_count": 2,
+      "description": "A library for high-performance machine learning research."
+    },
+    {
+      "id": 23,
+      "name": "deep learning",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "A subfield of machine learning that uses artificial neural networks to learn from data."
+    },
+    {
+      "id": 24,
+      "name": "keras",
+      "category": "framework",
+      "reference_count": 1,
+      "description": "A high-level neural networks API, used for building and training deep learning models."
+    },
+    {
+      "id": 25,
+      "name": "natural language processing",
+      "category": "application",
+      "reference_count": 1,
+      "description": "A field of AI that deals with analyzing, understanding and generating human language data."
+    },
+    {
+      "id": 26,
+      "name": "time series forecasting",
+      "category": "application",
+      "reference_count": 1,
+      "description": "A technique for predicting future values based on previously observed values over time."
+    },
+    {
+      "id": 27,
+      "name": "recommender systems",
+      "category": "application",
+      "reference_count": 1,
+      "description": "AI systems that guide users in a personalized way to interesting or useful objects."
+    },
+    {
+      "id": 28,
+      "name": "openvino",
+      "category": "framework",
+      "reference_count": 1,
+      "description": "An AI inference engine for optimizing deep learning models on Intel hardware."
+    },
+    {
+      "id": 29,
+      "name": "machine learning",
+      "category": "technique",
+      "reference_count": 2,
+      "description": "The study of algorithms and statistical models that enable systems to perform specific tasks effectively without using explicit instructions."
+    },
+    {
+      "id": 30,
+      "name": "neural network",
+      "category": "model",
+      "reference_count": 1,
+      "description": "A computational model inspired by biological neural networks, used in machine learning for tasks like computer vision and natural language processing."
+    },
+    {
+      "id": 31,
+      "name": "python api",
+      "category": "framework",
+      "reference_count": 1,
+      "description": "An application programming interface for using TensorFlow in the Python programming language."
+    },
+    {
+      "id": 32,
+      "name": "c++ api",
+      "category": "framework",
+      "reference_count": 1,
+      "description": "An application programming interface for using TensorFlow in the C++ programming language."
+    },
+    {
+      "id": 33,
+      "name": "gpu support",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "The ability to leverage graphics processing units (GPUs) to accelerate machine learning computations."
+    },
+    {
+      "id": 34,
+      "name": "docker container",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "A lightweight, standalone executable package that includes the TensorFlow environment and all its dependencies."
+    },
+    {
+      "id": 35,
+      "name": "speech recognition",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "The process of converting spoken audio into written text."
+    },
+    {
+      "id": 36,
+      "name": "sequence-to-sequence model",
+      "category": "model",
+      "reference_count": 1,
+      "description": "A type of model that takes a sequence as input and generates another sequence as output."
+    },
+    {
+      "id": 37,
+      "name": "multitask learning",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "A machine learning paradigm where a single model is trained on multiple related tasks simultaneously."
+    },
+    {
+      "id": 38,
+      "name": "speech translation",
+      "category": "task",
+      "reference_count": 1,
+      "description": "The process of translating spoken audio from one language to another language in text form."
+    },
+    {
+      "id": 39,
+      "name": "language identification",
+      "category": "task",
+      "reference_count": 1,
+      "description": "The task of automatically identifying the language of a given text or speech input."
+    },
+    {
+      "id": 40,
+      "name": "voice activity detection",
+      "category": "task",
+      "reference_count": 1,
+      "description": "The process of detecting the presence of human speech in an audio signal."
+    },
+    {
+      "id": 41,
+      "name": "ffmpeg",
+      "category": "tool",
+      "reference_count": 1,
+      "description": "A multimedia framework capable of reading and writing audio and video files."
+    },
+    {
+      "id": 42,
+      "name": "llama",
+      "category": "model",
+      "reference_count": 1,
+      "description": "A family of large language models developed by Meta AI Research."
+    },
+    {
+      "id": 43,
+      "name": "model weights",
+      "category": "model",
+      "reference_count": 1,
+      "description": "The parameters of a trained machine learning model."
+    },
+    {
+      "id": 44,
+      "name": "tokenizer",
+      "category": "technique",
+      "reference_count": 2,
+      "description": "A component that converts text into numerical token representations for input to a language model."
+    },
+    {
+      "id": 45,
+      "name": "inference",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "The process of using a trained model to generate predictions or outputs."
+    },
+    {
+      "id": 46,
+      "name": "fine-tuning",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "The process of further training a pre-trained model on a specific task or dataset."
+    },
+    {
+      "id": 47,
+      "name": "chat completion",
+      "category": "task",
+      "reference_count": 1,
+      "description": "A task where a language model generates responses in a conversational context."
+    },
+    {
+      "id": 48,
+      "name": "text completion",
+      "category": "task",
+      "reference_count": 1,
+      "description": "A task where a language model generates text continuations given a prompt."
+    },
+    {
+      "id": 49,
+      "name": "model parallelism",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "A technique to distribute a large model across multiple devices or processes."
+    },
+    {
+      "id": 50,
+      "name": "tensor",
+      "category": "data structure",
+      "reference_count": 1,
+      "description": "Multi-dimensional array data structure that can reside on CPU or GPU memory."
+    },
+    {
+      "id": 51,
+      "name": "gpu acceleration",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "Utilizing GPU hardware to significantly speed up tensor computations."
+    },
+    {
+      "id": 52,
+      "name": "deep neural network",
+      "category": "model",
+      "reference_count": 1,
+      "description": "Artificial neural networks with multiple layers for machine learning tasks."
+    },
+    {
+      "id": 53,
+      "name": "autograd",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "Automatic differentiation system for computing gradients used in training neural networks."
+    },
+    {
+      "id": 54,
+      "name": "numpy",
+      "category": "library",
+      "reference_count": 2,
+      "description": "Python library for scientific computing with support for multi-dimensional arrays."
+    },
+    {
+      "id": 55,
+      "name": "cuda",
+      "category": "framework",
+      "reference_count": 1,
+      "description": "Parallel computing platform and API model created by NVIDIA for general computing on GPUs."
+    },
+    {
+      "id": 56,
+      "name": "cudnn",
+      "category": "library",
+      "reference_count": 1,
+      "description": "GPU-accelerated library of primitives for deep neural networks by NVIDIA."
+    },
+    {
+      "id": 57,
+      "name": "text generation",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "The task of generating human-readable text using language models."
+    },
+    {
+      "id": 58,
+      "name": "instruction following",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "A paradigm where language models follow instructions to perform tasks."
+    },
+    {
+      "id": 59,
+      "name": "function calling",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "Allowing language models to call external functions or APIs."
+    },
+    {
+      "id": 60,
+      "name": "fill-in-the-middle (fim)",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "A technique for in-filling missing parts of text using language models."
+    },
+    {
+      "id": 61,
+      "name": "mistral tokenizer",
+      "category": "technique",
+      "reference_count": 1,
+      "description": "A custom tokenizer used by Mistral models."
+    },
+    {
+      "id": 62,
+      "name": "scikit-learn",
+      "category": "framework",
+      "reference_count": 1,
+      "description": "A Python module for machine learning built on top of SciPy and distributed under the 3-Clause BSD license."
+    },
+    {
+      "id": 63,
+      "name": "python",
+      "category": "framework",
+      "reference_count": 1,
+      "description": "A high-level programming language widely used for machine learning and data analysis."
+    },
+    {
+      "id": 64,
+      "name": "scipy",
+      "category": "framework",
+      "reference_count": 1,
+      "description": "A Python library for scientific and technical computing, providing many user-friendly and efficient numerical routines."
+    },
+    {
+      "id": 65,
+      "name": "joblib",
+      "category": "framework",
+      "reference_count": 1,
+      "description": "A Python library for lightweight pipelining and parallel computing."
+    },
+    {
+      "id": 66,
+      "name": "threadpoolctl",
+      "category": "framework",
+      "reference_count": 1,
+      "description": "A Python library for controlling thread pools in NumPy and SciPy."
+    },
+    {
+      "id": 67,
+      "name": "matplotlib",
+      "category": "framework",
+      "reference_count": 1,
+      "description": "A Python library for creating static, animated, and interactive visualizations in Python."
+    },
+    {
+      "id": 68,
+      "name": "scikit-image",
+      "category": "framework",
+      "reference_count": 1,
+      "description": "A collection of algorithms for image processing in Python."
+    },
+    {
+      "id": 69,
+      "name": "pandas",
+      "category": "framework",
+      "reference_count": 1,
+      "description": "A Python library for data manipulation and analysis, providing data structures and data analysis tools."
+    },
+    {
+      "id": 70,
+      "name": "seaborn",
+      "category": "framework",
+      "reference_count": 1,
+      "description": "A Python data visualization library based on matplotlib, providing a high-level interface for drawing attractive statistical graphics."
+    },
+    {
+      "id": 71,
+      "name": "plotly",
+      "category": "framework",
+      "reference_count": 1,
+      "description": "A Python library for creating interactive, web-based visualizations."
+    }
+  ],
+  "links": [
+    {
+      "source": 2,
+      "target": 1,
+      "relationship": "part_of",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 4,
+      "target": 1,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 4,
+      "target": 2,
+      "relationship": "implements",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 4,
+      "target": 3,
+      "relationship": "implements",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 4,
+      "target": 5,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 5,
+      "target": 1,
+      "relationship": "is_a",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 6,
+      "target": 7,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 8,
+      "target": 9,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 8,
+      "target": 10,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 8,
+      "target": 11,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 8,
+      "target": 12,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 10,
+      "target": 13,
+      "relationship": "prerequisite",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 11,
+      "target": 13,
+      "relationship": "based_on",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 14,
+      "target": 15,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 14,
+      "target": 16,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 14,
+      "target": 17,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 14,
+      "target": 18,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 14,
+      "target": 20,
+      "relationship": "implements",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 14,
+      "target": 21,
+      "relationship": "implements",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 14,
+      "target": 22,
+      "relationship": "implements",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 14,
+      "target": 36,
+      "relationship": "is_a",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 14,
+      "target": 57,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 15,
+      "target": 19,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 20,
+      "target": 50,
+      "relationship": "part_of",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 20,
+      "target": 51,
+      "relationship": "part_of",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 20,
+      "target": 52,
+      "relationship": "part_of",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 20,
+      "target": 53,
+      "relationship": "part_of",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 20,
+      "target": 54,
+      "relationship": "similar_to",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 21,
+      "target": 29,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 21,
+      "target": 30,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 24,
+      "target": 23,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 24,
+      "target": 17,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 24,
+      "target": 25,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 24,
+      "target": 26,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 24,
+      "target": 27,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 24,
+      "target": 22,
+      "relationship": "implements",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 24,
+      "target": 21,
+      "relationship": "implements",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 24,
+      "target": 20,
+      "relationship": "implements",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 24,
+      "target": 28,
+      "relationship": "implements",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 31,
+      "target": 21,
+      "relationship": "part_of",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 32,
+      "target": 21,
+      "relationship": "part_of",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 33,
+      "target": 21,
+      "relationship": "part_of",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 34,
+      "target": 21,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 42,
+      "target": 1,
+      "relationship": "is_a",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 43,
+      "target": 42,
+      "relationship": "part_of",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 44,
+      "target": 42,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 44,
+      "target": 14,
+      "relationship": "part_of",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 45,
+      "target": 42,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 46,
+      "target": 42,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 47,
+      "target": 42,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 48,
+      "target": 42,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 49,
+      "target": 42,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 51,
+      "target": 55,
+      "relationship": "implements",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 51,
+      "target": 56,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 58,
+      "target": 57,
+      "relationship": "is_a",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 59,
+      "target": 57,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 60,
+      "target": 57,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 61,
+      "target": 44,
+      "relationship": "is_a",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 62,
+      "target": 29,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 62,
+      "target": 63,
+      "relationship": "based_on",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 62,
+      "target": 54,
+      "relationship": "based_on",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 62,
+      "target": 64,
+      "relationship": "based_on",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 62,
+      "target": 65,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 62,
+      "target": 66,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 62,
+      "target": 67,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 62,
+      "target": 68,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 62,
+      "target": 69,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 62,
+      "target": 70,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    },
+    {
+      "source": 62,
+      "target": 71,
+      "relationship": "used_for",
+      "confidence": 0.7,
+      "reference_count": 1
+    }
+  ]
+}

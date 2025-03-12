@@ -1,0 +1,673 @@
+[
+  {
+    "community_id": 4,
+    "size": 11,
+    "top_concept": "transformer",
+    "top_concept_id": 14,
+    "category_distribution": {
+      "framework": 1,
+      "model": 2,
+      "technique": 8
+    },
+    "concepts": [
+      {
+        "id": 14,
+        "name": "transformer",
+        "description": "A library providing thousands of pretrained models for natural language processing, computer vision, and audio tasks.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:24:29.129125",
+        "last_updated": "2025-03-12T12:26:30.740825",
+        "reference_count": 3
+      },
+      {
+        "id": 15,
+        "name": "pretrained models",
+        "description": "Machine learning models that have been trained on large datasets.",
+        "category": "model",
+        "first_seen_date": "2025-03-12T12:24:29.129125",
+        "last_updated": "2025-03-12T12:24:29.129125",
+        "reference_count": 1
+      },
+      {
+        "id": 16,
+        "name": "natural language processing (nlp)",
+        "description": "A field of AI focused on analyzing, understanding, and generating human language data.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:24:29.129125",
+        "last_updated": "2025-03-12T12:24:29.129125",
+        "reference_count": 1
+      },
+      {
+        "id": 17,
+        "name": "computer vision",
+        "description": "A field of AI focused on analyzing and understanding digital images and videos.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:24:29.129125",
+        "last_updated": "2025-03-12T12:24:43.371871",
+        "reference_count": 2
+      },
+      {
+        "id": 18,
+        "name": "audio processing",
+        "description": "A field focused on analyzing and understanding audio signals like speech and music.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:24:29.129125",
+        "last_updated": "2025-03-12T12:24:29.129125",
+        "reference_count": 1
+      },
+      {
+        "id": 19,
+        "name": "transfer learning",
+        "description": "A technique of using a pretrained model as a starting point for a new task.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:24:29.129125",
+        "last_updated": "2025-03-12T12:24:29.129125",
+        "reference_count": 1
+      },
+      {
+        "id": 36,
+        "name": "sequence-to-sequence model",
+        "description": "A type of model that takes a sequence as input and generates another sequence as output.",
+        "category": "model",
+        "first_seen_date": "2025-03-12T12:25:53.273088",
+        "last_updated": "2025-03-12T12:25:53.273088",
+        "reference_count": 1
+      },
+      {
+        "id": 57,
+        "name": "text generation",
+        "description": "The task of generating human-readable text using language models.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:26:30.740825",
+        "last_updated": "2025-03-12T12:26:30.740825",
+        "reference_count": 1
+      },
+      {
+        "id": 58,
+        "name": "instruction following",
+        "description": "A paradigm where language models follow instructions to perform tasks.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:26:30.740825",
+        "last_updated": "2025-03-12T12:26:30.740825",
+        "reference_count": 1
+      },
+      {
+        "id": 59,
+        "name": "function calling",
+        "description": "Allowing language models to call external functions or APIs.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:26:30.740825",
+        "last_updated": "2025-03-12T12:26:30.740825",
+        "reference_count": 1
+      },
+      {
+        "id": 60,
+        "name": "fill-in-the-middle (fim)",
+        "description": "A technique for in-filling missing parts of text using language models.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:26:30.740825",
+        "last_updated": "2025-03-12T12:26:30.740825",
+        "reference_count": 1
+      }
+    ]
+  },
+  {
+    "community_id": 5,
+    "size": 10,
+    "top_concept": "scikit-learn",
+    "top_concept_id": 62,
+    "category_distribution": {
+      "framework": 10
+    },
+    "concepts": [
+      {
+        "id": 62,
+        "name": "scikit-learn",
+        "description": "A Python module for machine learning built on top of SciPy and distributed under the 3-Clause BSD license.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:26:46.184732",
+        "last_updated": "2025-03-12T12:26:46.184732",
+        "reference_count": 1
+      },
+      {
+        "id": 63,
+        "name": "python",
+        "description": "A high-level programming language widely used for machine learning and data analysis.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:26:46.184732",
+        "last_updated": "2025-03-12T12:26:46.184732",
+        "reference_count": 1
+      },
+      {
+        "id": 64,
+        "name": "scipy",
+        "description": "A Python library for scientific and technical computing, providing many user-friendly and efficient numerical routines.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:26:46.184732",
+        "last_updated": "2025-03-12T12:26:46.184732",
+        "reference_count": 1
+      },
+      {
+        "id": 65,
+        "name": "joblib",
+        "description": "A Python library for lightweight pipelining and parallel computing.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:26:46.184732",
+        "last_updated": "2025-03-12T12:26:46.184732",
+        "reference_count": 1
+      },
+      {
+        "id": 66,
+        "name": "threadpoolctl",
+        "description": "A Python library for controlling thread pools in NumPy and SciPy.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:26:46.184732",
+        "last_updated": "2025-03-12T12:26:46.184732",
+        "reference_count": 1
+      },
+      {
+        "id": 67,
+        "name": "matplotlib",
+        "description": "A Python library for creating static, animated, and interactive visualizations in Python.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:26:46.184732",
+        "last_updated": "2025-03-12T12:26:46.184732",
+        "reference_count": 1
+      },
+      {
+        "id": 68,
+        "name": "scikit-image",
+        "description": "A collection of algorithms for image processing in Python.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:26:46.184732",
+        "last_updated": "2025-03-12T12:26:46.184732",
+        "reference_count": 1
+      },
+      {
+        "id": 69,
+        "name": "pandas",
+        "description": "A Python library for data manipulation and analysis, providing data structures and data analysis tools.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:26:46.184732",
+        "last_updated": "2025-03-12T12:26:46.184732",
+        "reference_count": 1
+      },
+      {
+        "id": 70,
+        "name": "seaborn",
+        "description": "A Python data visualization library based on matplotlib, providing a high-level interface for drawing attractive statistical graphics.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:26:46.184732",
+        "last_updated": "2025-03-12T12:26:46.184732",
+        "reference_count": 1
+      },
+      {
+        "id": 71,
+        "name": "plotly",
+        "description": "A Python library for creating interactive, web-based visualizations.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:26:46.184732",
+        "last_updated": "2025-03-12T12:26:46.184732",
+        "reference_count": 1
+      }
+    ]
+  },
+  {
+    "community_id": 2,
+    "size": 9,
+    "top_concept": "tokenizer",
+    "top_concept_id": 44,
+    "category_distribution": {
+      "model": 2,
+      "technique": 5,
+      "task": 2
+    },
+    "concepts": [
+      {
+        "id": 42,
+        "name": "llama",
+        "description": "A family of large language models developed by Meta AI Research.",
+        "category": "model",
+        "first_seen_date": "2025-03-12T12:26:05.429405",
+        "last_updated": "2025-03-12T12:26:05.429405",
+        "reference_count": 1
+      },
+      {
+        "id": 43,
+        "name": "model weights",
+        "description": "The parameters of a trained machine learning model.",
+        "category": "model",
+        "first_seen_date": "2025-03-12T12:26:05.429405",
+        "last_updated": "2025-03-12T12:26:05.429405",
+        "reference_count": 1
+      },
+      {
+        "id": 44,
+        "name": "tokenizer",
+        "description": "A component that converts text into numerical token representations for input to a language model.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:26:05.429405",
+        "last_updated": "2025-03-12T12:26:30.740825",
+        "reference_count": 2
+      },
+      {
+        "id": 45,
+        "name": "inference",
+        "description": "The process of using a trained model to generate predictions or outputs.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:26:05.429405",
+        "last_updated": "2025-03-12T12:26:05.429405",
+        "reference_count": 1
+      },
+      {
+        "id": 46,
+        "name": "fine-tuning",
+        "description": "The process of further training a pre-trained model on a specific task or dataset.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:26:05.429405",
+        "last_updated": "2025-03-12T12:26:05.429405",
+        "reference_count": 1
+      },
+      {
+        "id": 47,
+        "name": "chat completion",
+        "description": "A task where a language model generates responses in a conversational context.",
+        "category": "task",
+        "first_seen_date": "2025-03-12T12:26:05.429405",
+        "last_updated": "2025-03-12T12:26:05.429405",
+        "reference_count": 1
+      },
+      {
+        "id": 48,
+        "name": "text completion",
+        "description": "A task where a language model generates text continuations given a prompt.",
+        "category": "task",
+        "first_seen_date": "2025-03-12T12:26:05.429405",
+        "last_updated": "2025-03-12T12:26:05.429405",
+        "reference_count": 1
+      },
+      {
+        "id": 49,
+        "name": "model parallelism",
+        "description": "A technique to distribute a large model across multiple devices or processes.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:26:05.429405",
+        "last_updated": "2025-03-12T12:26:05.429405",
+        "reference_count": 1
+      },
+      {
+        "id": 61,
+        "name": "mistral tokenizer",
+        "description": "A custom tokenizer used by Mistral models.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:26:30.740825",
+        "last_updated": "2025-03-12T12:26:30.740825",
+        "reference_count": 1
+      }
+    ]
+  },
+  {
+    "community_id": 6,
+    "size": 8,
+    "top_concept": "pytorch",
+    "top_concept_id": 20,
+    "category_distribution": {
+      "framework": 2,
+      "data structure": 1,
+      "technique": 2,
+      "model": 1,
+      "library": 2
+    },
+    "concepts": [
+      {
+        "id": 20,
+        "name": "pytorch",
+        "description": "A deep learning library used for building and training models.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:24:29.129125",
+        "last_updated": "2025-03-12T12:26:18.435066",
+        "reference_count": 4
+      },
+      {
+        "id": 50,
+        "name": "tensor",
+        "description": "Multi-dimensional array data structure that can reside on CPU or GPU memory.",
+        "category": "data structure",
+        "first_seen_date": "2025-03-12T12:26:18.435066",
+        "last_updated": "2025-03-12T12:26:18.435066",
+        "reference_count": 1
+      },
+      {
+        "id": 51,
+        "name": "gpu acceleration",
+        "description": "Utilizing GPU hardware to significantly speed up tensor computations.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:26:18.435066",
+        "last_updated": "2025-03-12T12:26:18.435066",
+        "reference_count": 1
+      },
+      {
+        "id": 52,
+        "name": "deep neural network",
+        "description": "Artificial neural networks with multiple layers for machine learning tasks.",
+        "category": "model",
+        "first_seen_date": "2025-03-12T12:26:18.435066",
+        "last_updated": "2025-03-12T12:26:18.435066",
+        "reference_count": 1
+      },
+      {
+        "id": 53,
+        "name": "autograd",
+        "description": "Automatic differentiation system for computing gradients used in training neural networks.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:26:18.435066",
+        "last_updated": "2025-03-12T12:26:18.435066",
+        "reference_count": 1
+      },
+      {
+        "id": 54,
+        "name": "numpy",
+        "description": "Python library for scientific computing with support for multi-dimensional arrays.",
+        "category": "library",
+        "first_seen_date": "2025-03-12T12:26:18.435066",
+        "last_updated": "2025-03-12T12:26:46.184732",
+        "reference_count": 2
+      },
+      {
+        "id": 55,
+        "name": "cuda",
+        "description": "Parallel computing platform and API model created by NVIDIA for general computing on GPUs.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:26:18.435066",
+        "last_updated": "2025-03-12T12:26:18.435066",
+        "reference_count": 1
+      },
+      {
+        "id": 56,
+        "name": "cudnn",
+        "description": "GPU-accelerated library of primitives for deep neural networks by NVIDIA.",
+        "category": "library",
+        "first_seen_date": "2025-03-12T12:26:18.435066",
+        "last_updated": "2025-03-12T12:26:18.435066",
+        "reference_count": 1
+      }
+    ]
+  },
+  {
+    "community_id": 7,
+    "size": 7,
+    "top_concept": "tensorflow",
+    "top_concept_id": 21,
+    "category_distribution": {
+      "framework": 3,
+      "technique": 3,
+      "model": 1
+    },
+    "concepts": [
+      {
+        "id": 21,
+        "name": "tensorflow",
+        "description": "A deep learning library used for building and training models.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:24:29.129125",
+        "last_updated": "2025-03-12T12:24:55.423129",
+        "reference_count": 3
+      },
+      {
+        "id": 29,
+        "name": "machine learning",
+        "description": "The study of algorithms and statistical models that enable systems to perform specific tasks effectively without using explicit instructions.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:24:55.423129",
+        "last_updated": "2025-03-12T12:26:46.184732",
+        "reference_count": 2
+      },
+      {
+        "id": 30,
+        "name": "neural network",
+        "description": "A computational model inspired by biological neural networks, used in machine learning for tasks like computer vision and natural language processing.",
+        "category": "model",
+        "first_seen_date": "2025-03-12T12:24:55.423129",
+        "last_updated": "2025-03-12T12:24:55.423129",
+        "reference_count": 1
+      },
+      {
+        "id": 31,
+        "name": "python api",
+        "description": "An application programming interface for using TensorFlow in the Python programming language.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:24:55.423129",
+        "last_updated": "2025-03-12T12:24:55.423129",
+        "reference_count": 1
+      },
+      {
+        "id": 32,
+        "name": "c++ api",
+        "description": "An application programming interface for using TensorFlow in the C++ programming language.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:24:55.423129",
+        "last_updated": "2025-03-12T12:24:55.423129",
+        "reference_count": 1
+      },
+      {
+        "id": 33,
+        "name": "gpu support",
+        "description": "The ability to leverage graphics processing units (GPUs) to accelerate machine learning computations.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:24:55.423129",
+        "last_updated": "2025-03-12T12:24:55.423129",
+        "reference_count": 1
+      },
+      {
+        "id": 34,
+        "name": "docker container",
+        "description": "A lightweight, standalone executable package that includes the TensorFlow environment and all its dependencies.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:24:55.423129",
+        "last_updated": "2025-03-12T12:24:55.423129",
+        "reference_count": 1
+      }
+    ]
+  },
+  {
+    "community_id": 8,
+    "size": 7,
+    "top_concept": "jax",
+    "top_concept_id": 22,
+    "category_distribution": {
+      "framework": 3,
+      "technique": 1,
+      "application": 3
+    },
+    "concepts": [
+      {
+        "id": 22,
+        "name": "jax",
+        "description": "A library for high-performance machine learning research.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:24:29.129125",
+        "last_updated": "2025-03-12T12:24:43.371871",
+        "reference_count": 2
+      },
+      {
+        "id": 23,
+        "name": "deep learning",
+        "description": "A subfield of machine learning that uses artificial neural networks to learn from data.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:24:43.371871",
+        "last_updated": "2025-03-12T12:24:43.371871",
+        "reference_count": 1
+      },
+      {
+        "id": 24,
+        "name": "keras",
+        "description": "A high-level neural networks API, used for building and training deep learning models.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:24:43.371871",
+        "last_updated": "2025-03-12T12:24:43.371871",
+        "reference_count": 1
+      },
+      {
+        "id": 25,
+        "name": "natural language processing",
+        "description": "A field of AI that deals with analyzing, understanding and generating human language data.",
+        "category": "application",
+        "first_seen_date": "2025-03-12T12:24:43.371871",
+        "last_updated": "2025-03-12T12:24:43.371871",
+        "reference_count": 1
+      },
+      {
+        "id": 26,
+        "name": "time series forecasting",
+        "description": "A technique for predicting future values based on previously observed values over time.",
+        "category": "application",
+        "first_seen_date": "2025-03-12T12:24:43.371871",
+        "last_updated": "2025-03-12T12:24:43.371871",
+        "reference_count": 1
+      },
+      {
+        "id": 27,
+        "name": "recommender systems",
+        "description": "AI systems that guide users in a personalized way to interesting or useful objects.",
+        "category": "application",
+        "first_seen_date": "2025-03-12T12:24:43.371871",
+        "last_updated": "2025-03-12T12:24:43.371871",
+        "reference_count": 1
+      },
+      {
+        "id": 28,
+        "name": "openvino",
+        "description": "An AI inference engine for optimizing deep learning models on Intel hardware.",
+        "category": "framework",
+        "first_seen_date": "2025-03-12T12:24:43.371871",
+        "last_updated": "2025-03-12T12:24:43.371871",
+        "reference_count": 1
+      }
+    ]
+  },
+  {
+    "community_id": 3,
+    "size": 6,
+    "top_concept": "novel view synthesis",
+    "top_concept_id": 8,
+    "category_distribution": {
+      "Technique": 4,
+      "Model": 1,
+      "Data Representation": 1
+    },
+    "concepts": [
+      {
+        "id": 8,
+        "name": "novel view synthesis",
+        "description": "Generating new viewpoints of a scene or object from a single or few input images.",
+        "category": "Technique",
+        "first_seen_date": "2025-03-12T12:24:12.690637",
+        "last_updated": "2025-03-12T12:24:12.690637",
+        "reference_count": 1
+      },
+      {
+        "id": 9,
+        "name": "diffusion model",
+        "description": "A type of generative model that learns to reverse a diffusion process to generate data.",
+        "category": "Model",
+        "first_seen_date": "2025-03-12T12:24:12.690637",
+        "last_updated": "2025-03-12T12:24:12.690637",
+        "reference_count": 1
+      },
+      {
+        "id": 10,
+        "name": "depth estimation",
+        "description": "Predicting the depth or 3D structure of a scene from 2D image(s).",
+        "category": "Technique",
+        "first_seen_date": "2025-03-12T12:24:12.690637",
+        "last_updated": "2025-03-12T12:24:12.690637",
+        "reference_count": 1
+      },
+      {
+        "id": 11,
+        "name": "3d reconstruction",
+        "description": "Creating 3D models or representations from 2D image data.",
+        "category": "Technique",
+        "first_seen_date": "2025-03-12T12:24:12.690637",
+        "last_updated": "2025-03-12T12:24:12.690637",
+        "reference_count": 1
+      },
+      {
+        "id": 12,
+        "name": "image warping",
+        "description": "Transforming an image based on a mapping between source and destination coordinates.",
+        "category": "Technique",
+        "first_seen_date": "2025-03-12T12:24:12.690637",
+        "last_updated": "2025-03-12T12:24:12.690637",
+        "reference_count": 1
+      },
+      {
+        "id": 13,
+        "name": "point cloud",
+        "description": "A set of data points in 3D space representing the geometry of an object or scene.",
+        "category": "Data Representation",
+        "first_seen_date": "2025-03-12T12:24:12.690637",
+        "last_updated": "2025-03-12T12:24:12.690637",
+        "reference_count": 1
+      }
+    ]
+  },
+  {
+    "community_id": 0,
+    "size": 5,
+    "top_concept": "language model",
+    "top_concept_id": 1,
+    "category_distribution": {
+      "model": 2,
+      "technique": 2,
+      "algorithm": 1
+    },
+    "concepts": [
+      {
+        "id": 1,
+        "name": "language model",
+        "description": "A statistical model that learns patterns from text data to generate human-like language.",
+        "category": "model",
+        "first_seen_date": "2025-03-12T12:24:01.220477",
+        "last_updated": "2025-03-12T12:26:05.429405",
+        "reference_count": 2
+      },
+      {
+        "id": 2,
+        "name": "self-correction",
+        "description": "The ability of a language model to revise and improve its own outputs.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:24:01.220477",
+        "last_updated": "2025-03-12T12:24:01.220477",
+        "reference_count": 1
+      },
+      {
+        "id": 3,
+        "name": "iterative fine-tuning",
+        "description": "A process of repeatedly fine-tuning a model on its own generated outputs to improve performance.",
+        "category": "technique",
+        "first_seen_date": "2025-03-12T12:24:01.220477",
+        "last_updated": "2025-03-12T12:24:01.220477",
+        "reference_count": 1
+      },
+      {
+        "id": 4,
+        "name": "self-taught self-correction (stasc)",
+        "description": "An algorithm that enables language models to learn self-correction through iterative fine-tuning on self-generated data.",
+        "category": "algorithm",
+        "first_seen_date": "2025-03-12T12:24:01.220477",
+        "last_updated": "2025-03-12T12:24:01.220477",
+        "reference_count": 1
+      },
+      {
+        "id": 5,
+        "name": "small language model (slm)",
+        "description": "A language model with relatively fewer parameters compared to large language models.",
+        "category": "model",
+        "first_seen_date": "2025-03-12T12:24:01.220477",
+        "last_updated": "2025-03-12T12:24:01.220477",
+        "reference_count": 1
+      }
+    ]
+  }
+]

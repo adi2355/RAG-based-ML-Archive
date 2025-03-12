@@ -1,0 +1,1074 @@
+<?xml version='1.0' encoding='utf-8'?>
+<gexf xmlns="http://www.gexf.net/1.2draft" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.gexf.net/1.2draft http://www.gexf.net/1.2draft/gexf.xsd" version="1.2">
+  <meta lastmodifieddate="2025-03-12">
+    <creator>NetworkX 3.4.2</creator>
+  </meta>
+  <graph defaultedgetype="directed" mode="static" name="">
+    <attributes mode="static" class="edge">
+      <attribute id="4" title="relationship" type="string" />
+      <attribute id="5" title="confidence" type="double" />
+      <attribute id="6" title="reference_count" type="long" />
+    </attributes>
+    <attributes mode="static" class="node">
+      <attribute id="0" title="name" type="string" />
+      <attribute id="1" title="description" type="string" />
+      <attribute id="2" title="category" type="string" />
+      <attribute id="3" title="reference_count" type="long" />
+    </attributes>
+    <nodes>
+      <node id="1" label="1">
+        <attvalues>
+          <attvalue for="0" value="language model" />
+          <attvalue for="1" value="A statistical model that learns patterns from text data to generate human-like language." />
+          <attvalue for="2" value="model" />
+          <attvalue for="3" value="2" />
+        </attvalues>
+      </node>
+      <node id="2" label="2">
+        <attvalues>
+          <attvalue for="0" value="self-correction" />
+          <attvalue for="1" value="The ability of a language model to revise and improve its own outputs." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="3" label="3">
+        <attvalues>
+          <attvalue for="0" value="iterative fine-tuning" />
+          <attvalue for="1" value="A process of repeatedly fine-tuning a model on its own generated outputs to improve performance." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="4" label="4">
+        <attvalues>
+          <attvalue for="0" value="self-taught self-correction (stasc)" />
+          <attvalue for="1" value="An algorithm that enables language models to learn self-correction through iterative fine-tuning on self-generated data." />
+          <attvalue for="2" value="algorithm" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="5" label="5">
+        <attvalues>
+          <attvalue for="0" value="small language model (slm)" />
+          <attvalue for="1" value="A language model with relatively fewer parameters compared to large language models." />
+          <attvalue for="2" value="model" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="6" label="6">
+        <attvalues>
+          <attvalue for="0" value="question answering" />
+          <attvalue for="1" value="A natural language processing task where a system answers questions based on given context." />
+          <attvalue for="2" value="task" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="7" label="7">
+        <attvalues>
+          <attvalue for="0" value="natural questions dataset" />
+          <attvalue for="1" value="A dataset containing factual questions and their answers." />
+          <attvalue for="2" value="dataset" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="8" label="8">
+        <attvalues>
+          <attvalue for="0" value="novel view synthesis" />
+          <attvalue for="1" value="Generating new viewpoints of a scene or object from a single or few input images." />
+          <attvalue for="2" value="Technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="9" label="9">
+        <attvalues>
+          <attvalue for="0" value="diffusion model" />
+          <attvalue for="1" value="A type of generative model that learns to reverse a diffusion process to generate data." />
+          <attvalue for="2" value="Model" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="10" label="10">
+        <attvalues>
+          <attvalue for="0" value="depth estimation" />
+          <attvalue for="1" value="Predicting the depth or 3D structure of a scene from 2D image(s)." />
+          <attvalue for="2" value="Technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="11" label="11">
+        <attvalues>
+          <attvalue for="0" value="3d reconstruction" />
+          <attvalue for="1" value="Creating 3D models or representations from 2D image data." />
+          <attvalue for="2" value="Technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="12" label="12">
+        <attvalues>
+          <attvalue for="0" value="image warping" />
+          <attvalue for="1" value="Transforming an image based on a mapping between source and destination coordinates." />
+          <attvalue for="2" value="Technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="13" label="13">
+        <attvalues>
+          <attvalue for="0" value="point cloud" />
+          <attvalue for="1" value="A set of data points in 3D space representing the geometry of an object or scene." />
+          <attvalue for="2" value="Data Representation" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="14" label="14">
+        <attvalues>
+          <attvalue for="0" value="transformer" />
+          <attvalue for="1" value="A library providing thousands of pretrained models for natural language processing, computer vision, and audio tasks." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="3" />
+        </attvalues>
+      </node>
+      <node id="15" label="15">
+        <attvalues>
+          <attvalue for="0" value="pretrained models" />
+          <attvalue for="1" value="Machine learning models that have been trained on large datasets." />
+          <attvalue for="2" value="model" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="16" label="16">
+        <attvalues>
+          <attvalue for="0" value="natural language processing (nlp)" />
+          <attvalue for="1" value="A field of AI focused on analyzing, understanding, and generating human language data." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="17" label="17">
+        <attvalues>
+          <attvalue for="0" value="computer vision" />
+          <attvalue for="1" value="A field of AI focused on analyzing and understanding digital images and videos." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="2" />
+        </attvalues>
+      </node>
+      <node id="18" label="18">
+        <attvalues>
+          <attvalue for="0" value="audio processing" />
+          <attvalue for="1" value="A field focused on analyzing and understanding audio signals like speech and music." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="19" label="19">
+        <attvalues>
+          <attvalue for="0" value="transfer learning" />
+          <attvalue for="1" value="A technique of using a pretrained model as a starting point for a new task." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="20" label="20">
+        <attvalues>
+          <attvalue for="0" value="pytorch" />
+          <attvalue for="1" value="A deep learning library used for building and training models." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="4" />
+        </attvalues>
+      </node>
+      <node id="21" label="21">
+        <attvalues>
+          <attvalue for="0" value="tensorflow" />
+          <attvalue for="1" value="A deep learning library used for building and training models." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="3" />
+        </attvalues>
+      </node>
+      <node id="22" label="22">
+        <attvalues>
+          <attvalue for="0" value="jax" />
+          <attvalue for="1" value="A library for high-performance machine learning research." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="2" />
+        </attvalues>
+      </node>
+      <node id="23" label="23">
+        <attvalues>
+          <attvalue for="0" value="deep learning" />
+          <attvalue for="1" value="A subfield of machine learning that uses artificial neural networks to learn from data." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="24" label="24">
+        <attvalues>
+          <attvalue for="0" value="keras" />
+          <attvalue for="1" value="A high-level neural networks API, used for building and training deep learning models." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="25" label="25">
+        <attvalues>
+          <attvalue for="0" value="natural language processing" />
+          <attvalue for="1" value="A field of AI that deals with analyzing, understanding and generating human language data." />
+          <attvalue for="2" value="application" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="26" label="26">
+        <attvalues>
+          <attvalue for="0" value="time series forecasting" />
+          <attvalue for="1" value="A technique for predicting future values based on previously observed values over time." />
+          <attvalue for="2" value="application" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="27" label="27">
+        <attvalues>
+          <attvalue for="0" value="recommender systems" />
+          <attvalue for="1" value="AI systems that guide users in a personalized way to interesting or useful objects." />
+          <attvalue for="2" value="application" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="28" label="28">
+        <attvalues>
+          <attvalue for="0" value="openvino" />
+          <attvalue for="1" value="An AI inference engine for optimizing deep learning models on Intel hardware." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="29" label="29">
+        <attvalues>
+          <attvalue for="0" value="machine learning" />
+          <attvalue for="1" value="The study of algorithms and statistical models that enable systems to perform specific tasks effectively without using explicit instructions." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="2" />
+        </attvalues>
+      </node>
+      <node id="30" label="30">
+        <attvalues>
+          <attvalue for="0" value="neural network" />
+          <attvalue for="1" value="A computational model inspired by biological neural networks, used in machine learning for tasks like computer vision and natural language processing." />
+          <attvalue for="2" value="model" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="31" label="31">
+        <attvalues>
+          <attvalue for="0" value="python api" />
+          <attvalue for="1" value="An application programming interface for using TensorFlow in the Python programming language." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="32" label="32">
+        <attvalues>
+          <attvalue for="0" value="c++ api" />
+          <attvalue for="1" value="An application programming interface for using TensorFlow in the C++ programming language." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="33" label="33">
+        <attvalues>
+          <attvalue for="0" value="gpu support" />
+          <attvalue for="1" value="The ability to leverage graphics processing units (GPUs) to accelerate machine learning computations." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="34" label="34">
+        <attvalues>
+          <attvalue for="0" value="docker container" />
+          <attvalue for="1" value="A lightweight, standalone executable package that includes the TensorFlow environment and all its dependencies." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="35" label="35">
+        <attvalues>
+          <attvalue for="0" value="speech recognition" />
+          <attvalue for="1" value="The process of converting spoken audio into written text." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="36" label="36">
+        <attvalues>
+          <attvalue for="0" value="sequence-to-sequence model" />
+          <attvalue for="1" value="A type of model that takes a sequence as input and generates another sequence as output." />
+          <attvalue for="2" value="model" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="37" label="37">
+        <attvalues>
+          <attvalue for="0" value="multitask learning" />
+          <attvalue for="1" value="A machine learning paradigm where a single model is trained on multiple related tasks simultaneously." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="38" label="38">
+        <attvalues>
+          <attvalue for="0" value="speech translation" />
+          <attvalue for="1" value="The process of translating spoken audio from one language to another language in text form." />
+          <attvalue for="2" value="task" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="39" label="39">
+        <attvalues>
+          <attvalue for="0" value="language identification" />
+          <attvalue for="1" value="The task of automatically identifying the language of a given text or speech input." />
+          <attvalue for="2" value="task" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="40" label="40">
+        <attvalues>
+          <attvalue for="0" value="voice activity detection" />
+          <attvalue for="1" value="The process of detecting the presence of human speech in an audio signal." />
+          <attvalue for="2" value="task" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="41" label="41">
+        <attvalues>
+          <attvalue for="0" value="ffmpeg" />
+          <attvalue for="1" value="A multimedia framework capable of reading and writing audio and video files." />
+          <attvalue for="2" value="tool" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="42" label="42">
+        <attvalues>
+          <attvalue for="0" value="llama" />
+          <attvalue for="1" value="A family of large language models developed by Meta AI Research." />
+          <attvalue for="2" value="model" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="43" label="43">
+        <attvalues>
+          <attvalue for="0" value="model weights" />
+          <attvalue for="1" value="The parameters of a trained machine learning model." />
+          <attvalue for="2" value="model" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="44" label="44">
+        <attvalues>
+          <attvalue for="0" value="tokenizer" />
+          <attvalue for="1" value="A component that converts text into numerical token representations for input to a language model." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="2" />
+        </attvalues>
+      </node>
+      <node id="45" label="45">
+        <attvalues>
+          <attvalue for="0" value="inference" />
+          <attvalue for="1" value="The process of using a trained model to generate predictions or outputs." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="46" label="46">
+        <attvalues>
+          <attvalue for="0" value="fine-tuning" />
+          <attvalue for="1" value="The process of further training a pre-trained model on a specific task or dataset." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="47" label="47">
+        <attvalues>
+          <attvalue for="0" value="chat completion" />
+          <attvalue for="1" value="A task where a language model generates responses in a conversational context." />
+          <attvalue for="2" value="task" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="48" label="48">
+        <attvalues>
+          <attvalue for="0" value="text completion" />
+          <attvalue for="1" value="A task where a language model generates text continuations given a prompt." />
+          <attvalue for="2" value="task" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="49" label="49">
+        <attvalues>
+          <attvalue for="0" value="model parallelism" />
+          <attvalue for="1" value="A technique to distribute a large model across multiple devices or processes." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="50" label="50">
+        <attvalues>
+          <attvalue for="0" value="tensor" />
+          <attvalue for="1" value="Multi-dimensional array data structure that can reside on CPU or GPU memory." />
+          <attvalue for="2" value="data structure" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="51" label="51">
+        <attvalues>
+          <attvalue for="0" value="gpu acceleration" />
+          <attvalue for="1" value="Utilizing GPU hardware to significantly speed up tensor computations." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="52" label="52">
+        <attvalues>
+          <attvalue for="0" value="deep neural network" />
+          <attvalue for="1" value="Artificial neural networks with multiple layers for machine learning tasks." />
+          <attvalue for="2" value="model" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="53" label="53">
+        <attvalues>
+          <attvalue for="0" value="autograd" />
+          <attvalue for="1" value="Automatic differentiation system for computing gradients used in training neural networks." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="54" label="54">
+        <attvalues>
+          <attvalue for="0" value="numpy" />
+          <attvalue for="1" value="Python library for scientific computing with support for multi-dimensional arrays." />
+          <attvalue for="2" value="library" />
+          <attvalue for="3" value="2" />
+        </attvalues>
+      </node>
+      <node id="55" label="55">
+        <attvalues>
+          <attvalue for="0" value="cuda" />
+          <attvalue for="1" value="Parallel computing platform and API model created by NVIDIA for general computing on GPUs." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="56" label="56">
+        <attvalues>
+          <attvalue for="0" value="cudnn" />
+          <attvalue for="1" value="GPU-accelerated library of primitives for deep neural networks by NVIDIA." />
+          <attvalue for="2" value="library" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="57" label="57">
+        <attvalues>
+          <attvalue for="0" value="text generation" />
+          <attvalue for="1" value="The task of generating human-readable text using language models." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="58" label="58">
+        <attvalues>
+          <attvalue for="0" value="instruction following" />
+          <attvalue for="1" value="A paradigm where language models follow instructions to perform tasks." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="59" label="59">
+        <attvalues>
+          <attvalue for="0" value="function calling" />
+          <attvalue for="1" value="Allowing language models to call external functions or APIs." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="60" label="60">
+        <attvalues>
+          <attvalue for="0" value="fill-in-the-middle (fim)" />
+          <attvalue for="1" value="A technique for in-filling missing parts of text using language models." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="61" label="61">
+        <attvalues>
+          <attvalue for="0" value="mistral tokenizer" />
+          <attvalue for="1" value="A custom tokenizer used by Mistral models." />
+          <attvalue for="2" value="technique" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="62" label="62">
+        <attvalues>
+          <attvalue for="0" value="scikit-learn" />
+          <attvalue for="1" value="A Python module for machine learning built on top of SciPy and distributed under the 3-Clause BSD license." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="63" label="63">
+        <attvalues>
+          <attvalue for="0" value="python" />
+          <attvalue for="1" value="A high-level programming language widely used for machine learning and data analysis." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="64" label="64">
+        <attvalues>
+          <attvalue for="0" value="scipy" />
+          <attvalue for="1" value="A Python library for scientific and technical computing, providing many user-friendly and efficient numerical routines." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="65" label="65">
+        <attvalues>
+          <attvalue for="0" value="joblib" />
+          <attvalue for="1" value="A Python library for lightweight pipelining and parallel computing." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="66" label="66">
+        <attvalues>
+          <attvalue for="0" value="threadpoolctl" />
+          <attvalue for="1" value="A Python library for controlling thread pools in NumPy and SciPy." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="67" label="67">
+        <attvalues>
+          <attvalue for="0" value="matplotlib" />
+          <attvalue for="1" value="A Python library for creating static, animated, and interactive visualizations in Python." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="68" label="68">
+        <attvalues>
+          <attvalue for="0" value="scikit-image" />
+          <attvalue for="1" value="A collection of algorithms for image processing in Python." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="69" label="69">
+        <attvalues>
+          <attvalue for="0" value="pandas" />
+          <attvalue for="1" value="A Python library for data manipulation and analysis, providing data structures and data analysis tools." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="70" label="70">
+        <attvalues>
+          <attvalue for="0" value="seaborn" />
+          <attvalue for="1" value="A Python data visualization library based on matplotlib, providing a high-level interface for drawing attractive statistical graphics." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+      <node id="71" label="71">
+        <attvalues>
+          <attvalue for="0" value="plotly" />
+          <attvalue for="1" value="A Python library for creating interactive, web-based visualizations." />
+          <attvalue for="2" value="framework" />
+          <attvalue for="3" value="1" />
+        </attvalues>
+      </node>
+    </nodes>
+    <edges>
+      <edge source="2" target="1" id="0" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="part_of" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="4" target="1" id="1" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="4" target="2" id="2" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="implements" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="4" target="3" id="3" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="implements" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="4" target="5" id="4" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="5" target="1" id="5" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="is_a" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="6" target="7" id="6" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="8" target="9" id="7" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="8" target="10" id="8" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="8" target="11" id="9" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="8" target="12" id="10" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="10" target="13" id="11" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="prerequisite" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="11" target="13" id="12" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="based_on" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="14" target="15" id="13" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="14" target="16" id="14" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="14" target="17" id="15" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="14" target="18" id="16" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="14" target="20" id="17" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="implements" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="14" target="21" id="18" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="implements" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="14" target="22" id="19" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="implements" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="14" target="36" id="20" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="is_a" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="14" target="57" id="21" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="15" target="19" id="22" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="20" target="50" id="23" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="part_of" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="20" target="51" id="24" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="part_of" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="20" target="52" id="25" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="part_of" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="20" target="53" id="26" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="part_of" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="20" target="54" id="27" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="similar_to" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="21" target="29" id="28" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="21" target="30" id="29" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="24" target="23" id="30" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="24" target="17" id="31" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="24" target="25" id="32" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="24" target="26" id="33" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="24" target="27" id="34" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="24" target="22" id="35" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="implements" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="24" target="21" id="36" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="implements" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="24" target="20" id="37" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="implements" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="24" target="28" id="38" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="implements" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="31" target="21" id="39" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="part_of" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="32" target="21" id="40" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="part_of" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="33" target="21" id="41" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="part_of" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="34" target="21" id="42" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="42" target="1" id="43" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="is_a" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="43" target="42" id="44" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="part_of" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="44" target="42" id="45" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="44" target="14" id="46" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="part_of" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="45" target="42" id="47" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="46" target="42" id="48" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="47" target="42" id="49" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="48" target="42" id="50" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="49" target="42" id="51" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="51" target="55" id="52" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="implements" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="51" target="56" id="53" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="58" target="57" id="54" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="is_a" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="59" target="57" id="55" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="60" target="57" id="56" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="61" target="44" id="57" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="is_a" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="62" target="29" id="58" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="62" target="63" id="59" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="based_on" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="62" target="54" id="60" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="based_on" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="62" target="64" id="61" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="based_on" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="62" target="65" id="62" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="62" target="66" id="63" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="62" target="67" id="64" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="62" target="68" id="65" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="62" target="69" id="66" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="62" target="70" id="67" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+      <edge source="62" target="71" id="68" weight="0.7">
+        <attvalues>
+          <attvalue for="4" value="used_for" />
+          <attvalue for="5" value="0.7" />
+          <attvalue for="6" value="1" />
+        </attvalues>
+      </edge>
+    </edges>
+  </graph>
+</gexf>
