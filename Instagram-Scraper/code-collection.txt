@@ -976,170 +976,169 @@ if __name__ == "__main__":
     collect_papers() 
 
 ================================================================================
-File: collectCode.js
+File: chunking.py
 ================================================================================
 
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+"""
+Text chunking module for breaking content into appropriate-sized pieces for embedding
 
-// Default configuration for file collection
-const DEFAULT_CONFIG = {
-  extensions: ['.ts', '.tsx', '.js', '.md', '.json', '.py', '.sql'],
-  excludeDirs: [
-  '.expo',
-  'android',
-  'CanovaReactNativeApp/app/dataOverviews',
-  'assets',
-  'data',
-  'ios',
-  'node_modules',
-  'static',
-  'templates',
-  'venv',
-  
-  
+This module provides functions to split content into overlapping chunks for better
+context preservation and more effective embeddings for vector search.
+"""
+import logging
+import re
+from typing import List, Dict, Any
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger('chunking')
+
+def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) -> List[str]:
+    """
+    Split text into overlapping chunks for better context preservation
     
-   
-  ],
-  excludeFiles: [
-    '.test.',
-    '.spec.',
-    '.d.ts',
-    '.map',
-    'next-env.d.ts',
-    '.gitignore',
-    '.eslintrc.json',
-    '.env.example',
-    'components.json',
-    'package-lock.json',
-  ],
-  excludePaths: [
-    'lib/supabase.ts',
-    'lib/rate-limit.ts',
-    'lib/monitoring.ts',
-    'lib/cache.ts',
-    'lib/auth.ts',
-    'scripts/test-agent1.ts',
-    'scripts/test-agent2.ts',
-    'scripts/test-agent3.ts',
-    'scripts/test-orchestrator.ts',
-    'lib/graphql/queries.ts',
-    'lib/graphql/client.ts',
-    'hooks/use-toast.ts',
-    'components/WalletConnect.tsx',
-    'components/Learn.tsx',
-    'components/ContractInteraction.tsx',
-    'components/Analytics.tsx',
-    'app/providers.tsx',
-    'app/page.tsx',
-    'app/globals.css',
-    'app/layout.tsx',
-
-
-    'CanovaReactNativeApp/tsconfig.json',
-    'CanovaReactNativeApp/app.json',
+    Args:
+        text: The text to split into chunks
+        chunk_size: Maximum size in characters for each chunk
+        overlap: Number of characters to overlap between chunks
+        
+    Returns:
+        List of text chunks
+    """
+    if not text or len(text) <= chunk_size:
+        return [text] if text else []
+        
+    chunks = []
+    start = 0
+    text_length = len(text)
     
-  ],
-  maxFileSize: 1024 * 1024, // 1MB
-};
+    while start < text_length:
+        # Calculate end position with potential overlap
+        end = min(start + chunk_size, text_length)
+        
+        # If we're not at the very end, try to find a good breaking point
+        if end < text_length:
+            # Look for natural text boundaries in order of preference
+            # Check for double newlines (paragraph breaks)
+            paragraph_break = text.rfind("\n\n", start, end)
+            if paragraph_break != -1 and paragraph_break > start + chunk_size // 2:
+                end = paragraph_break + 2
+            else:
+                # Check for single newlines
+                newline = text.rfind("\n", start, end)
+                if newline != -1 and newline > start + chunk_size // 2:
+                    end = newline + 1
+                else:
+                    # Check for sentence boundaries (period followed by space)
+                    sentence = text.rfind(". ", start, end)
+                    if sentence != -1 and sentence > start + chunk_size // 2:
+                        end = sentence + 2
+                    else:
+                        # Last resort: check for any space
+                        space = text.rfind(" ", start, end)
+                        if space != -1 and space > start + chunk_size // 2:
+                            end = space + 1
+        
+        # Extract the chunk and add to results
+        chunk = text[start:end].strip()
+        if chunk:  # Only add non-empty chunks
+            chunks.append(chunk)
+        
+        # Move start position for next chunk, ensuring overlap
+        start = max(start + 1, end - overlap)
+    
+    logger.debug(f"Split text into {len(chunks)} chunks")
+    return chunks
 
-// Helper function to get relative path
-function getRelativePath(fullPath, rootDir) {
-  return path.relative(rootDir, fullPath);
-}
+def chunk_with_metadata(content: Dict[str, Any], 
+                        chunk_size: int = 1000, 
+                        overlap: int = 200) -> List[Dict[str, Any]]:
+    """
+    Split content with metadata into chunks, preserving metadata in each chunk
+    
+    Args:
+        content: Dictionary with text and metadata
+        chunk_size: Maximum size in characters for each chunk
+        overlap: Number of characters to overlap between chunks
+        
+    Returns:
+        List of dictionaries, each with a text chunk and the original metadata
+    """
+    if not content or 'text' not in content:
+        return []
+    
+    # Extract text and metadata
+    text = content['text']
+    metadata = {k: v for k, v in content.items() if k != 'text'}
+    
+    # Chunk the text
+    text_chunks = chunk_text(text, chunk_size, overlap)
+    
+    # Create result with metadata preserved
+    result = []
+    for i, chunk in enumerate(text_chunks):
+        chunk_data = metadata.copy()
+        chunk_data['text'] = chunk
+        chunk_data['chunk_index'] = i
+        chunk_data['total_chunks'] = len(text_chunks)
+        result.append(chunk_data)
+    
+    return result
 
-// Check if a file should be excluded based on config
-function shouldExcludeFile(filePath, config) {
-  const normalizedPath = path.normalize(filePath);
+def prepare_content_for_embedding(title: str, description: str, content: str) -> str:
+    """
+    Prepare content by combining title, description, and content with appropriate formatting
+    
+    Args:
+        title: Content title
+        description: Content description or summary
+        content: Main content text
+        
+    Returns:
+        Formatted text ready for chunking and embedding
+    """
+    parts = []
+    
+    if title:
+        parts.append(f"Title: {title.strip()}")
+    
+    if description:
+        parts.append(f"Description: {description.strip()}")
+    
+    if content:
+        parts.append(f"Content: {content.strip()}")
+    
+    return "\n\n".join(parts)
 
-  if (config.excludeFiles.some((pattern) => normalizedPath.includes(pattern))) {
-    return true;
-  }
-
-  if (config.excludePaths.some((excludePath) =>
-    normalizedPath.includes(path.normalize(excludePath))
-  )) {
-    return true;
-  }
-
-  return false;
-}
-
-// Check if a directory should be excluded based on config
-function shouldExcludeDir(dirPath, config) {
-  const normalizedPath = path.normalize(dirPath);
-  return config.excludeDirs.some((excludeDir) =>
-    normalizedPath.includes(path.normalize(excludeDir))
-  );
-}
-
-// Recursively collect files from directory
-function collectFiles(dir, rootDir, config) {
-  let results = [];
-  const items = fs.readdirSync(dir, { withFileTypes: true });
-
-  for (const item of items) {
-    const fullPath = path.join(dir, item.name);
-    const relativePath = getRelativePath(fullPath, rootDir);
-
-    if (item.isDirectory()) {
-      if (!shouldExcludeDir(fullPath, config)) {
-        results = results.concat(collectFiles(fullPath, rootDir, config));
-      }
-    } else {
-      const ext = path.extname(item.name).toLowerCase();
-
-      if (config.extensions.includes(ext) && !shouldExcludeFile(relativePath, config)) {
-        const stats = fs.statSync(fullPath);
-        if (stats.size <= config.maxFileSize) {
-          results.push({ path: fullPath, relativePath });
-        }
-      }
-    }
-  }
-
-  return results;
-}
-
-// Main function to collect code
-function collectCode(outputFile, customConfig = {}) {
-  const config = { ...DEFAULT_CONFIG, ...customConfig };
-
-  try {
-    fs.writeFileSync(outputFile, '');
-
-    const rootDir = process.cwd();
-    console.log(`Processing project directory: ${rootDir}`);
-    const files = collectFiles(rootDir, rootDir, config);
-
-    files.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
-
-    files.forEach(({ path: filePath, relativePath }) => {
-      const content = fs.readFileSync(filePath, 'utf8');
-      const separator = '='.repeat(80);
-      fs.appendFileSync(
-        outputFile,
-        `\n\n${separator}\nFile: ${relativePath}\n${separator}\n\n${content}`
-      );
-    });
-
-    console.log('Collection complete!');
-  } catch (error) {
-    console.error('Error during collection:', error);
-    process.exit(1);
-  }
-}
-
-// Check if running as main module
-const isMainModule = process.argv[1] === fileURLToPath(import.meta.url);
-
-if (isMainModule) {
-  const outputFile = process.argv[2] || 'code-collection.txt';
-  collectCode(outputFile);
-}
-
-export { collectCode }; 
+if __name__ == "__main__":
+    # Test the chunking functionality
+    test_text = """
+    Title: Understanding Vector Embeddings
+    
+    This is a test document that will be split into chunks. Vector embeddings are numerical representations 
+    of concepts converted into a series of numbers so that computers can understand how semantically close 
+    two concepts are to each other.
+    
+    The main idea behind vector embeddings is to represent data in a way that captures semantic similarity
+    through spatial relationships in a high-dimensional vector space.
+    
+    When we perform operations like measuring the cosine similarity between two vectors, we're essentially
+    quantifying how similar the underlying concepts are.
+    
+    This has applications in search, recommendations, classification, and many other machine learning tasks.
+    """
+    
+    chunks = chunk_text(test_text, chunk_size=200, overlap=50)
+    
+    print(f"Split text into {len(chunks)} chunks:")
+    for i, chunk in enumerate(chunks):
+        print(f"\nChunk {i+1}:")
+        print("-" * 40)
+        print(chunk)
+        print("-" * 40) 
 
 ================================================================================
 File: concept_extractor.py
@@ -1849,115 +1848,157 @@ File: db_migration.py
 ================================================================================
 
 """
-Database migration script for the Instagram Knowledge Base
-Adds GitHub-related tables and a unified content structure
+Database migration module for Instagram Knowledge Base
 """
 import os
-import sqlite3
 import logging
-import json
+import sqlite3
 from datetime import datetime
-
-from config import DATA_DIR, DB_PATH
+import json
+import config
 
 # Configure logging
-log_dir = os.path.join(DATA_DIR, 'logs')
-os.makedirs(log_dir, exist_ok=True)
-
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(os.path.join(log_dir, 'db_migration.log')),
-        logging.StreamHandler()
-    ]
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger('db_migration')
 
 def migrate_database():
     """
-    Migrate the database to support GitHub repositories and a unified content structure
+    Perform database migration to support multiple content sources and vector embeddings
     
     Returns:
-        Boolean indicating success
+        bool: Success or failure
     """
     logger.info("Starting database migration")
+    start_time = datetime.now()
     
     try:
         # Connect to the database
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(config.DB_PATH)
         cursor = conn.cursor()
         
-        # Check if videos table exists
+        # Check for existing tables
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='videos'")
         has_videos_table = cursor.fetchone() is not None
         
-        if not has_videos_table:
-            logger.error("Videos table does not exist in the database. Please initialize the database first.")
-            return False
-        
-        # Check if source_types table exists
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='source_types'")
         has_source_types_table = cursor.fetchone() is not None
         
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='github_repos'")
+        has_github_repos_table = cursor.fetchone() is not None
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ai_content'")
+        has_ai_content_table = cursor.fetchone() is not None
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='research_papers'")
+        has_research_papers_table = cursor.fetchone() is not None
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='content_embeddings'")
+        has_content_embeddings_table = cursor.fetchone() is not None
+        
+        # Create source_types table if it doesn't exist
         if not has_source_types_table:
-            logger.info("Creating source_types table")
             cursor.execute("""
             CREATE TABLE source_types (
                 id INTEGER PRIMARY KEY,
-                name TEXT UNIQUE NOT NULL,
-                description TEXT
+                name TEXT NOT NULL,
+                description TEXT,
+                UNIQUE(name)
             )
             """)
             
             # Insert initial source types
-            cursor.executemany(
-                "INSERT INTO source_types (id, name, description) VALUES (?, ?, ?)",
-                [
-                    (1, "instagram", "Instagram videos and posts"),
-                    (2, "github", "GitHub repositories"),
-                    (3, "research_paper", "Scientific research papers")
-                ]
-            )
-            logger.info("Added initial source types")
+            cursor.execute("INSERT INTO source_types (name, description) VALUES (?, ?)", 
+                         ('instagram', 'Instagram videos and posts'))
+            cursor.execute("INSERT INTO source_types (name, description) VALUES (?, ?)", 
+                         ('github', 'GitHub repositories'))
+            cursor.execute("INSERT INTO source_types (name, description) VALUES (?, ?)", 
+                         ('research_paper', 'Scientific research papers'))
+            
+            logger.info("Created source_types table")
         
-        # Check if github_repos table exists
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='github_repos'")
-        has_github_repos_table = cursor.fetchone() is not None
-        
+        # Create GitHub repositories table if it doesn't exist
         if not has_github_repos_table:
-            logger.info("Creating github_repos table")
             cursor.execute("""
             CREATE TABLE github_repos (
                 id INTEGER PRIMARY KEY,
                 name TEXT NOT NULL,
-                full_name TEXT UNIQUE NOT NULL,
+                full_name TEXT NOT NULL,
                 description TEXT,
                 url TEXT,
-                stars INTEGER DEFAULT 0,
-                watchers INTEGER DEFAULT 0,
-                forks INTEGER DEFAULT 0,
+                stars INTEGER,
+                watchers INTEGER,
+                forks INTEGER,
                 language TEXT,
                 last_push TEXT,
                 created_at TEXT,
                 updated_at TEXT,
                 topics TEXT,
                 readme TEXT,
-                last_crawled TEXT
+                last_crawled TEXT,
+                UNIQUE(full_name)
             )
             """)
             
-            # Create index on full_name
-            cursor.execute("CREATE INDEX idx_github_repos_full_name ON github_repos (full_name)")
-            cursor.execute("CREATE INDEX idx_github_repos_stars ON github_repos (stars)")
-            logger.info("Created github_repos table and indices")
+            # Create index for searching
+            cursor.execute("CREATE INDEX idx_github_repos_name ON github_repos(name)")
+            cursor.execute("CREATE INDEX idx_github_repos_language ON github_repos(language)")
+            
+            logger.info("Created github_repos table")
         
-        # Check if ai_content table exists
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ai_content'")
-        has_ai_content_table = cursor.fetchone() is not None
+        # Create research papers table if it doesn't exist
+        if not has_research_papers_table:
+            cursor.execute("""
+            CREATE TABLE research_papers (
+                id INTEGER PRIMARY KEY,
+                title TEXT NOT NULL,
+                authors TEXT,
+                abstract TEXT,
+                publication TEXT,
+                year INTEGER,
+                url TEXT,
+                doi TEXT,
+                pdf_path TEXT,
+                content TEXT,
+                last_crawled TEXT,
+                UNIQUE(doi)
+            )
+            """)
+            
+            # Create indices
+            cursor.execute("CREATE INDEX idx_research_papers_title ON research_papers(title)")
+            cursor.execute("CREATE INDEX idx_research_papers_year ON research_papers(year)")
+            
+            logger.info("Created research_papers table")
         
-        if not has_ai_content_table:
-            logger.info("Creating ai_content table for unified content")
+        # Check if ai_content table exists but needs migration
+        if has_ai_content_table:
+            # Check for the required columns
+            cursor.execute("PRAGMA table_info(ai_content)")
+            columns = {column[1] for column in cursor.fetchall()}
+            
+            # If the table structure is significantly different, we might need to recreate it
+            # But let's check if we just need to add a date_indexed column
+            if "date_indexed" not in columns:
+                try:
+                    logger.info("Adding date_indexed column to ai_content table")
+                    cursor.execute("ALTER TABLE ai_content ADD COLUMN date_indexed TEXT")
+                    conn.commit()
+                except sqlite3.OperationalError as e:
+                    logger.warning(f"Could not add date_indexed column: {str(e)}")
+            
+            # Verify that required columns exist
+            required_columns = {"source_id", "source_type_id"}
+            missing_columns = required_columns - columns
+            
+            if missing_columns:
+                logger.error(f"ai_content table is missing required columns: {missing_columns}, manual intervention needed")
+                # We won't proceed with migration that could lose data
+                return False
+        else:
+            # Create unified content table if it doesn't exist
             cursor.execute("""
             CREATE TABLE ai_content (
                 id INTEGER PRIMARY KEY,
@@ -1968,191 +2009,215 @@ def migrate_database():
                 content TEXT,
                 url TEXT,
                 date_created TEXT,
-                date_collected TEXT,
+                date_collected TEXT NOT NULL,
+                date_indexed TEXT,
                 metadata TEXT,
                 is_indexed INTEGER DEFAULT 0,
                 embedding_file TEXT,
-                FOREIGN KEY (source_type_id) REFERENCES source_types(id),
-                UNIQUE (source_type_id, source_id)
+                FOREIGN KEY(source_type_id) REFERENCES source_types(id),
+                UNIQUE(source_type_id, source_id)
             )
             """)
             
-            # Create indexes
-            cursor.execute("CREATE INDEX idx_ai_content_source ON ai_content (source_type_id, source_id)")
-            cursor.execute("CREATE INDEX idx_ai_content_is_indexed ON ai_content (is_indexed)")
-            logger.info("Created ai_content table and indices")
+            # Create indices
+            cursor.execute("CREATE INDEX idx_ai_content_source ON ai_content(source_type_id, source_id)")
+            cursor.execute("CREATE INDEX idx_ai_content_title ON ai_content(title)")
+            cursor.execute("CREATE INDEX idx_ai_content_date ON ai_content(date_created)")
+            
+            logger.info("Created ai_content table")
+            
+            # Commit to ensure table is created before migration
+            conn.commit()
+            
+            # Migrate existing Instagram videos if available
+            if has_videos_table:
+                try:
+                    # Get source_type_id for Instagram
+                    cursor.execute("SELECT id FROM source_types WHERE name = 'instagram'")
+                    instagram_source_type_id = cursor.fetchone()
+                    
+                    if instagram_source_type_id is None:
+                        # Insert instagram source type if not already present
+                        cursor.execute("INSERT INTO source_types (name, description) VALUES (?, ?)", 
+                                     ('instagram', 'Instagram videos and posts'))
+                        instagram_source_type_id = cursor.lastrowid
+                    else:
+                        instagram_source_type_id = instagram_source_type_id[0]
+                    
+                    # Get columns in videos table to handle different schema versions
+                    cursor.execute("PRAGMA table_info(videos)")
+                    columns = [column[1] for column in cursor.fetchall()]
+                    
+                    # Build dynamic query based on available columns
+                    select_columns = ["id", "shortcode"]
+                    
+                    # Add caption if it exists
+                    if "caption" in columns:
+                        select_columns.append("caption")
+                    else:
+                        select_columns.append("''")  # Empty string as placeholder
+                    
+                    # Add timestamp if it exists
+                    if "timestamp" in columns:
+                        select_columns.append("timestamp")
+                    
+                    # Add username if it exists, or try account
+                    if "username" in columns:
+                        select_columns.append("username")
+                    elif "account" in columns:
+                        select_columns.append("account")
+                    
+                    if "filepath" in columns:
+                        select_columns.append("filepath")
+                    
+                    # Add where clause if downloaded column exists
+                    where_clause = ""
+                    if "downloaded" in columns:
+                        where_clause = "WHERE downloaded = 1"
+                    
+                    # Create the query
+                    query = f"SELECT {', '.join(select_columns)} FROM videos {where_clause}"
+                    
+                    # Execute the query
+                    cursor.execute(query)
+                    videos = cursor.fetchall()
+                    
+                    migrated_count = 0
+                    for video in videos:
+                        try:
+                            # Extract data with flexible column positions
+                            video_id = video[0]
+                            shortcode = video[1]
+                            caption = video[2] if len(video) > 2 else ""
+                            
+                            # Handle timestamp if available (index will depend on whether caption exists)
+                            timestamp_idx = select_columns.index("timestamp") if "timestamp" in select_columns else -1
+                            timestamp = video[timestamp_idx] if timestamp_idx >= 0 and timestamp_idx < len(video) else None
+                            
+                            # Handle username/account
+                            username_idx = -1
+                            if "username" in select_columns:
+                                username_idx = select_columns.index("username")
+                            elif "account" in select_columns:
+                                username_idx = select_columns.index("account")
+                                
+                            username = video[username_idx] if username_idx >= 0 and username_idx < len(video) else "unknown"
+                            
+                            # Format date
+                            date_created = datetime.now().isoformat()
+                            if timestamp:
+                                try:
+                                    # Just use the timestamp as is, don't try to convert it
+                                    date_created = timestamp
+                                except:
+                                    # Use current time if timestamp causes issues
+                                    logger.warning(f"Could not use timestamp for video {video_id}, using current time")
+                            
+                            # Insert into ai_content table
+                            cursor.execute("""
+                            INSERT OR IGNORE INTO ai_content 
+                            (source_type_id, source_id, title, description, url, date_created, date_collected, metadata)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                            """, (
+                                instagram_source_type_id,
+                                str(video_id),
+                                f"Instagram video from {username}",
+                                caption,
+                                f"https://www.instagram.com/p/{shortcode}/",
+                                date_created,
+                                datetime.now().isoformat(),
+                                json.dumps({"shortcode": shortcode, "username": username})
+                            ))
+                            migrated_count += 1
+                            
+                            # Commit every 10 items to avoid holding locks too long
+                            if migrated_count % 10 == 0:
+                                conn.commit()
+                                
+                        except Exception as e:
+                            logger.error(f"Error migrating video {video[0]}: {str(e)}")
+                    
+                    # Final commit
+                    conn.commit()
+                    logger.info(f"Migrated {migrated_count} Instagram videos to ai_content table")
+                except Exception as e:
+                    logger.error(f"Error migrating Instagram videos: {str(e)}")
         
-        # Check if research_papers table exists
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='research_papers'")
-        has_research_papers_table = cursor.fetchone() is not None
-        
-        if not has_research_papers_table:
-            logger.info("Creating research_papers table")
+        # Create content embeddings table if it doesn't exist
+        if not has_content_embeddings_table:
             cursor.execute("""
-            CREATE TABLE research_papers (
+            CREATE TABLE content_embeddings (
                 id INTEGER PRIMARY KEY,
-                title TEXT NOT NULL,
-                authors TEXT,
-                abstract TEXT,
-                publication TEXT,
-                year INTEGER,
-                url TEXT,
-                doi TEXT UNIQUE,
-                pdf_path TEXT,
-                content TEXT,
-                last_crawled TEXT
+                content_id INTEGER NOT NULL,
+                embedding_vector BLOB NOT NULL,
+                embedding_model TEXT NOT NULL,
+                chunk_index INTEGER DEFAULT 0,
+                chunk_text TEXT,
+                date_created TEXT NOT NULL,
+                FOREIGN KEY(content_id) REFERENCES ai_content(id),
+                UNIQUE(content_id, chunk_index)
             )
             """)
             
-            # Create index on doi
-            cursor.execute("CREATE INDEX idx_research_papers_doi ON research_papers (doi)")
-            cursor.execute("CREATE INDEX idx_research_papers_year ON research_papers (year)")
-            logger.info("Created research_papers table and indices")
-        
-        # Migrate existing Instagram videos to ai_content if needed
-        if has_ai_content_table:
-            cursor.execute("SELECT COUNT(*) FROM ai_content WHERE source_type_id = 1")
-            instagram_count = cursor.fetchone()[0]
+            # Create indices
+            cursor.execute("CREATE INDEX idx_content_embeddings_content ON content_embeddings(content_id)")
             
-            if instagram_count == 0:
-                logger.info("Migrating existing Instagram videos to ai_content table")
+            logger.info("Created content_embeddings table")
+            
+        # Create FTS virtual table for full-text search if it doesn't exist
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='ai_content_fts'")
+        has_fts_table = cursor.fetchone() is not None
+        
+        if not has_fts_table and has_ai_content_table:
+            try:
+                # Get column names from ai_content
+                cursor.execute("PRAGMA table_info(ai_content)")
+                columns = [column[1] for column in cursor.fetchall()]
                 
-                # Check the schema of the videos table
-                cursor.execute("PRAGMA table_info(videos)")
-                columns = {row[1]: row[0] for row in cursor.fetchall()}
+                # Check required columns for FTS
+                fts_columns = ["title", "description", "content"]
+                available_fts_columns = [col for col in fts_columns if col in columns]
                 
-                # Build the query based on available columns
-                select_cols = ["id", "shortcode"]
-                if "caption" in columns:
-                    select_cols.append("caption")
-                if "timestamp" in columns:
-                    select_cols.append("timestamp")
-                if "username" in columns:
-                    select_cols.append("username")
-                if "filepath" in columns:
-                    select_cols.append("filepath")
-                if "downloaded" in columns:
-                    select_cols.append("downloaded")
-                if "transcribed" in columns:
-                    select_cols.append("transcribed")
-                if "summarized" in columns:
-                    select_cols.append("summarized")
-                if "indexed" in columns:
-                    select_cols.append("indexed")
-                if "duration_seconds" in columns:
-                    select_cols.append("duration_seconds")
-                if "key_phrases" in columns:
-                    select_cols.append("key_phrases")
-                
-                # Build the query with an appropriate WHERE clause
-                query = f"SELECT {', '.join(select_cols)} FROM videos"
-                # Add WHERE clause only if downloaded column exists
-                if "downloaded" in columns:
-                    query += " WHERE downloaded = 1"
-                
-                logger.info(f"Running query: {query}")
-                
-                # Get all videos
-                cursor.execute(query)
-                videos = cursor.fetchall()
-                
-                # Get Instagram source type ID
-                source_type_id = 1  # Instagram
-                
-                for video in videos:
-                    # Create a dictionary to hold values with appropriate defaults
-                    video_data = {}
-                    for i, col in enumerate(select_cols):
-                        video_data[col] = video[i]
+                if len(available_fts_columns) > 0:
+                    # Create column definitions for FTS
+                    content_link = 'content="ai_content"'
+                    indexed_columns = ", ".join(available_fts_columns)
+                    notindexed_columns = "notindexed=id, notindexed=source_type_id"
                     
-                    # Extract required values with defaults
-                    video_id = video_data.get("id")
-                    shortcode = video_data.get("shortcode")
-                    caption = video_data.get("caption", "")
-                    timestamp = video_data.get("timestamp")
-                    username = video_data.get("username", "unknown")
-                    filepath = video_data.get("filepath", "")
-                    downloaded = video_data.get("downloaded", 1)
-                    transcribed = video_data.get("transcribed", 0)
-                    summarized = video_data.get("summarized", 0)
-                    indexed = video_data.get("indexed", 0)
-                    duration_seconds = video_data.get("duration_seconds", 0)
-                    key_phrases = video_data.get("key_phrases", "")
+                    fts_query = f"""
+                    CREATE VIRTUAL TABLE ai_content_fts USING fts4(
+                        {content_link},
+                        {indexed_columns},
+                        {notindexed_columns}
+                    )
+                    """
                     
-                    # Create metadata
-                    metadata = {
-                        'username': username,
-                        'shortcode': shortcode,
-                        'duration_seconds': duration_seconds or 0,
-                        'key_phrases': key_phrases or ''
-                    }
+                    cursor.execute(fts_query)
                     
-                    # Get content (transcript or summary) if available
-                    content = None
-                    if summarized == 1:
-                        # Try to get summary
-                        cursor.execute("SELECT summary FROM summaries WHERE video_id = ?", (video_id,))
-                        summary_row = cursor.fetchone()
-                        if summary_row:
-                            content = summary_row[0]
+                    # Populate FTS table with existing content
+                    select_columns = ", ".join(available_fts_columns)
+                    cursor.execute(f"""
+                    INSERT INTO ai_content_fts(docid, {select_columns})
+                    SELECT id, {select_columns} FROM ai_content
+                    WHERE content IS NOT NULL
+                    """)
                     
-                    if not content and transcribed == 1:
-                        # Try to get transcript
-                        cursor.execute("SELECT transcript FROM transcripts WHERE video_id = ?", (video_id,))
-                        transcript_row = cursor.fetchone()
-                        if transcript_row:
-                            content = transcript_row[0]
-                    
-                    # Insert into ai_content
-                    try:
-                        cursor.execute("""
-                        INSERT INTO ai_content (
-                            source_type_id, source_id, title, description, content,
-                            url, date_created, date_collected, metadata, is_indexed
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """, (
-                            source_type_id,
-                            video_id,
-                            f"Instagram video from {username}",
-                            caption or "",
-                            content or "",
-                            f"https://www.instagram.com/p/{shortcode}/" if shortcode else "",
-                            datetime.now().isoformat(),
-                            datetime.now().isoformat(),
-                            json.dumps(metadata),
-                            1 if indexed == 1 else 0
-                        ))
-                    except sqlite3.IntegrityError:
-                        # Skip duplicates
-                        logger.warning(f"Skipping duplicate video {video_id} during migration")
-                    except Exception as e:
-                        logger.error(f"Error migrating video {video_id}: {str(e)}")
-                
-                logger.info(f"Migrated {len(videos)} Instagram videos to ai_content table")
+                    logger.info("Created ai_content_fts virtual table for full-text search")
+                else:
+                    logger.warning("Could not create FTS table: required columns not found in ai_content")
+            except Exception as e:
+                logger.warning(f"Could not create FTS table: {str(e)}")
         
         # Commit changes
         conn.commit()
-        logger.info("Database migration completed successfully")
         
-        # Close connection
-        conn.close()
+        # Done
+        elapsed_time = (datetime.now() - start_time).total_seconds()
+        logger.info(f"Database migration completed successfully in {elapsed_time:.2f} seconds")
         return True
-    
+        
     except Exception as e:
-        logger.error(f"Error during database migration: {str(e)}")
-        
-        # Try to rollback
-        try:
-            conn.rollback()
-        except:
-            pass
-        
-        # Close connection
-        try:
-            conn.close()
-        except:
-            pass
-        
+        logger.error(f"Database migration failed: {str(e)}")
         return False
 
 if __name__ == "__main__":
@@ -3073,6 +3138,801 @@ if __name__ == "__main__":
     download_from_instagram() 
 
 ================================================================================
+File: embeddings.py
+================================================================================
+
+"""
+Embedding generation module for creating vector representations of content
+
+This module provides functionality to generate and store vector embeddings
+for content in the knowledge base using sentence-transformers.
+"""
+import os
+import logging
+import sqlite3
+import pickle
+import time
+from datetime import datetime
+import numpy as np
+from typing import List, Dict, Any, Union, Optional, Tuple
+
+# Import local modules
+import config
+from chunking import chunk_text, prepare_content_for_embedding
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger('embeddings')
+
+# Check if sentence-transformers is available
+try:
+    from sentence_transformers import SentenceTransformer
+    SENTENCE_TRANSFORMERS_AVAILABLE = True
+except ImportError:
+    logger.warning("sentence-transformers not available. Using fallback embedding method.")
+    SENTENCE_TRANSFORMERS_AVAILABLE = False
+
+class EmbeddingGenerator:
+    """Class for generating embeddings from text content"""
+    
+    def __init__(self, model_name: str = "multi-qa-mpnet-base-dot-v1"):
+        """
+        Initialize the embedding generator
+        
+        Args:
+            model_name: Name of the sentence-transformers model to use
+        """
+        self.model_name = model_name
+        self.embedding_size = 0
+        
+        # Initialize the model
+        if SENTENCE_TRANSFORMERS_AVAILABLE:
+            try:
+                logger.info(f"Loading sentence-transformers model: {model_name}")
+                self.model = SentenceTransformer(model_name)
+                self.embedding_size = self.model.get_sentence_embedding_dimension()
+                logger.info(f"Model loaded. Embedding size: {self.embedding_size}")
+            except Exception as e:
+                logger.error(f"Error loading sentence-transformers model: {str(e)}")
+                self.model = None
+        else:
+            logger.warning("Using fallback embedding model (simple TF-IDF)")
+            self.model = None
+    
+    def generate_embedding(self, text: str) -> np.ndarray:
+        """
+        Generate embedding for text using the loaded model
+        
+        Args:
+            text: Text to generate embedding for
+            
+        Returns:
+            Numpy array containing the embedding vector
+        """
+        if not text or len(text.strip()) == 0:
+            logger.warning("Empty text provided for embedding generation")
+            # Return a zero vector with correct dimensions
+            if self.embedding_size > 0:
+                return np.zeros(self.embedding_size)
+            else:
+                return np.zeros(768)  # Default fallback size
+                
+        if self.model is not None:
+            # Use sentence-transformers
+            try:
+                embedding = self.model.encode(text, show_progress_bar=False)
+                return embedding
+            except Exception as e:
+                logger.error(f"Error generating embedding with sentence-transformers: {str(e)}")
+                return self._fallback_embedding(text)
+        else:
+            # Use fallback method
+            return self._fallback_embedding(text)
+    
+    def _fallback_embedding(self, text: str) -> np.ndarray:
+        """
+        Fallback method for generating embeddings when sentence-transformers is not available
+        This implements a simple TF-IDF based embedding
+        
+        Args:
+            text: Text to generate embedding for
+            
+        Returns:
+            Numpy array containing the embedding vector
+        """
+        # Simple fallback: convert text to bag of words and hash to fixed size
+        from collections import Counter
+        import hashlib
+        
+        # Default embedding size
+        embedding_size = 768
+        
+        # Tokenize text (simple approach)
+        tokens = text.lower().split()
+        
+        # Calculate term frequencies
+        term_counts = Counter(tokens)
+        
+        # Generate a deterministic embedding based on term frequencies
+        result = np.zeros(embedding_size)
+        
+        for term, count in term_counts.items():
+            # Hash the term to get a position in the embedding
+            term_hash = int(hashlib.md5(term.encode()).hexdigest(), 16)
+            position = term_hash % embedding_size
+            
+            # Use term count as value, normalized by total tokens
+            result[position] += count / len(tokens)
+        
+        # Normalize the vector
+        norm = np.linalg.norm(result)
+        if norm > 0:
+            result = result / norm
+            
+        return result
+    
+    def process_content_item(self, content_id: int, force_update: bool = False, 
+                            chunk_size: int = 1000, chunk_overlap: int = 200) -> bool:
+        """
+        Process a content item from the database, generating and storing embeddings
+        
+        Args:
+            content_id: ID of the content item in the ai_content table
+            force_update: Whether to update existing embeddings
+            chunk_size: Maximum size of text chunks
+            chunk_overlap: Overlap between chunks
+            
+        Returns:
+            Boolean indicating success
+        """
+        conn = None
+        try:
+            # Connect to database
+            conn = sqlite3.connect(config.DB_PATH)
+            cursor = conn.cursor()
+            
+            # Get content data
+            cursor.execute("""
+                SELECT title, description, content, source_type_id 
+                FROM ai_content WHERE id = ?
+            """, (content_id,))
+            
+            result = cursor.fetchone()
+            if not result:
+                logger.warning(f"Content with ID {content_id} not found")
+                return False
+            
+            title, description, content, source_type_id = result
+            
+            # Get source type name
+            cursor.execute("SELECT name FROM source_types WHERE id = ?", (source_type_id,))
+            source_type_result = cursor.fetchone()
+            source_type = source_type_result[0] if source_type_result else "unknown"
+            
+            # Skip if no meaningful content
+            if not content or len(content.strip()) < 50:
+                logger.warning(f"Content with ID {content_id} has insufficient text for embedding")
+                return False
+            
+            # Check if we should update
+            if not force_update:
+                cursor.execute(
+                    "SELECT COUNT(*) FROM content_embeddings WHERE content_id = ?",
+                    (content_id,)
+                )
+                if cursor.fetchone()[0] > 0:
+                    logger.debug(f"Embeddings already exist for content ID {content_id}")
+                    return True
+            
+            # Prepare text for embedding
+            full_text = prepare_content_for_embedding(title, description, content)
+            
+            # Generate chunks
+            chunks = chunk_text(full_text, chunk_size=chunk_size, overlap=chunk_overlap)
+            if not chunks:
+                logger.warning(f"Failed to generate chunks for content ID {content_id}")
+                return False
+            
+            logger.info(f"Generated {len(chunks)} chunks for content ID {content_id}")
+            
+            # Process each chunk
+            for i, chunk in enumerate(chunks):
+                # Generate embedding
+                start_time = time.time()
+                embedding = self.generate_embedding(chunk)
+                elapsed = time.time() - start_time
+                
+                logger.debug(f"Generated embedding for chunk {i+1}/{len(chunks)} in {elapsed:.2f}s")
+                
+                # Convert numpy array to binary for storage
+                embedding_binary = pickle.dumps(embedding)
+                
+                # Store in database
+                cursor.execute("""
+                    INSERT OR REPLACE INTO content_embeddings 
+                    (content_id, embedding_vector, embedding_model, chunk_index, chunk_text, date_created)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                """, (
+                    content_id,
+                    embedding_binary,
+                    self.model_name,
+                    i,
+                    chunk,
+                    datetime.now().isoformat()
+                ))
+            
+            # Update ai_content to mark as processed
+            cursor.execute("""
+                UPDATE ai_content 
+                SET metadata = json.set(COALESCE(metadata, '{}'), '$.embeddings_generated', 1),
+                    date_indexed = ?
+                WHERE id = ?
+            """, (datetime.now().isoformat(), content_id))
+            
+            conn.commit()
+            logger.info(f"Successfully processed content ID {content_id} with {len(chunks)} embeddings")
+            return True
+            
+        except Exception as e:
+            logger.error(f"Error processing content ID {content_id}: {str(e)}")
+            if conn:
+                conn.rollback()
+            return False
+            
+        finally:
+            if conn:
+                conn.close()
+    
+    def process_batch(self, batch_size: int = 10, max_items: Optional[int] = None, 
+                     source_type: Optional[str] = None) -> int:
+        """
+        Process a batch of content items from the database
+        
+        Args:
+            batch_size: Number of items to process in a batch
+            max_items: Maximum total number of items to process
+            source_type: If provided, only process items of this source type
+            
+        Returns:
+            Number of items successfully processed
+        """
+        conn = None
+        try:
+            # Connect to database
+            conn = sqlite3.connect(config.DB_PATH)
+            cursor = conn.cursor()
+            
+            # Build query to get unprocessed content
+            query = """
+                SELECT c.id FROM ai_content c
+                WHERE c.content IS NOT NULL 
+                AND LENGTH(c.content) > 100
+                AND (
+                    json_extract(c.metadata, '$.embeddings_generated') IS NULL 
+                    OR json_extract(c.metadata, '$.embeddings_generated') = 0
+                )
+            """
+            
+            params = []
+            
+            # Add source type filter if provided
+            if source_type:
+                cursor.execute("SELECT id FROM source_types WHERE name = ?", (source_type,))
+                source_type_id = cursor.fetchone()
+                if source_type_id:
+                    query += " AND c.source_type_id = ?"
+                    params.append(source_type_id[0])
+                else:
+                    logger.warning(f"Source type '{source_type}' not found")
+            
+            # Add limit
+            if max_items:
+                query += " LIMIT ?"
+                params.append(max_items)
+            
+            # Get content IDs
+            cursor.execute(query, params)
+            content_ids = [row[0] for row in cursor.fetchall()]
+            
+            logger.info(f"Found {len(content_ids)} content items to process")
+            
+            # Process in batches
+            processed_count = 0
+            for i in range(0, len(content_ids), batch_size):
+                batch = content_ids[i:i+batch_size]
+                logger.info(f"Processing batch {i//batch_size + 1}/{(len(content_ids)-1)//batch_size + 1}")
+                
+                for content_id in batch:
+                    success = self.process_content_item(content_id)
+                    if success:
+                        processed_count += 1
+                    
+                    # Brief pause to avoid overwhelming resources
+                    time.sleep(0.1)
+                
+                # Longer pause between batches
+                if i + batch_size < len(content_ids):
+                    logger.info(f"Batch complete. Pausing before next batch...")
+                    time.sleep(1)
+            
+            return processed_count
+            
+        except Exception as e:
+            logger.error(f"Error processing batch: {str(e)}")
+            return 0
+            
+        finally:
+            if conn:
+                conn.close()
+
+def main():
+    """Main function for direct script execution"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Generate embeddings for content")
+    parser.add_argument("--batch-size", type=int, default=10, help="Batch size for processing")
+    parser.add_argument("--max-items", type=int, help="Maximum number of items to process")
+    parser.add_argument("--source-type", help="Process only this source type (instagram, github, research_paper)")
+    parser.add_argument("--model", default="multi-qa-mpnet-base-dot-v1", help="Name of the sentence-transformers model to use")
+    parser.add_argument("--content-id", type=int, help="Process a specific content ID")
+    parser.add_argument("--force-update", action="store_true", help="Force update of existing embeddings")
+    
+    args = parser.parse_args()
+    
+    # Create embedding generator
+    generator = EmbeddingGenerator(model_name=args.model)
+    
+    if args.content_id:
+        # Process specific content ID
+        logger.info(f"Processing content ID: {args.content_id}")
+        success = generator.process_content_item(args.content_id, force_update=args.force_update)
+        if success:
+            logger.info(f"Successfully processed content ID: {args.content_id}")
+        else:
+            logger.error(f"Failed to process content ID: {args.content_id}")
+    else:
+        # Process batch
+        logger.info("Processing batch of content items")
+        processed = generator.process_batch(
+            batch_size=args.batch_size,
+            max_items=args.max_items,
+            source_type=args.source_type
+        )
+        logger.info(f"Successfully processed {processed} content items")
+
+if __name__ == "__main__":
+    main() 
+
+================================================================================
+File: generate_embeddings.py
+================================================================================
+
+#!/usr/bin/env python3
+"""
+Embedding Generation Script
+
+This script generates vector embeddings for all content items in the database.
+It processes content in batches, chunks the text, and stores the embeddings
+in the content_embeddings table.
+"""
+import os
+import sys
+import logging
+import sqlite3
+import time
+import argparse
+from datetime import datetime
+from typing import List, Dict, Any, Optional, Union, Tuple
+
+# Add parent directory to path to ensure imports work
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import local modules
+import config
+from chunking import chunk_text, prepare_content_for_embedding
+from embeddings import EmbeddingGenerator
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler("logs/embedding_generation.log"),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger('generate_embeddings')
+
+def ensure_embedding_table_exists(conn: sqlite3.Connection) -> None:
+    """
+    Ensure content_embeddings table exists in the database
+    
+    Args:
+        conn: SQLite database connection
+    """
+    cursor = conn.cursor()
+    
+    # Check if content_embeddings table exists
+    cursor.execute("""
+        SELECT name FROM sqlite_master 
+        WHERE type='table' AND name='content_embeddings'
+    """)
+    
+    if not cursor.fetchone():
+        logger.info("Creating content_embeddings table...")
+        cursor.execute("""
+            CREATE TABLE content_embeddings (
+                id INTEGER PRIMARY KEY,
+                content_id INTEGER NOT NULL,
+                embedding_vector BLOB NOT NULL,
+                embedding_model TEXT NOT NULL,
+                chunk_index INTEGER DEFAULT 0,
+                chunk_text TEXT,
+                date_created TEXT NOT NULL,
+                FOREIGN KEY(content_id) REFERENCES ai_content(id),
+                UNIQUE(content_id, chunk_index)
+            )
+        """)
+        
+        # Create indices for faster lookup
+        cursor.execute("""
+            CREATE INDEX idx_content_embeddings_content_id
+            ON content_embeddings(content_id)
+        """)
+        
+        conn.commit()
+        logger.info("content_embeddings table created")
+
+def get_content_items(conn: sqlite3.Connection, 
+                     source_type: Optional[str] = None,
+                     limit: Optional[int] = None,
+                     offset: int = 0,
+                     skip_existing: bool = True) -> List[Dict[str, Any]]:
+    """
+    Get content items from the database
+    
+    Args:
+        conn: SQLite database connection
+        source_type: Optional filter by source type
+        limit: Maximum number of items to return
+        offset: Number of items to skip
+        skip_existing: Skip items that already have embeddings
+        
+    Returns:
+        List of content items
+    """
+    cursor = conn.cursor()
+    
+    # Build query
+    query = """
+        SELECT 
+            c.id, c.source_type_id, c.source_id, c.title, c.description,
+            c.content, c.date_created, c.metadata, st.name as source_type_name
+        FROM ai_content c
+        JOIN source_types st ON c.source_type_id = st.id
+    """
+    
+    params = []
+    
+    # Add source type filter if provided
+    if source_type:
+        query += " WHERE st.name = ?"
+        params.append(source_type)
+    
+    # Skip items that already have embeddings
+    if skip_existing:
+        if source_type:
+            query += " AND NOT EXISTS"
+        else:
+            query += " WHERE NOT EXISTS"
+            
+        query += """
+            (SELECT 1 FROM content_embeddings ce 
+             WHERE ce.content_id = c.id)
+        """
+    
+    # Add order by and limit/offset
+    query += " ORDER BY c.id"
+    
+    if limit:
+        query += " LIMIT ?"
+        params.append(limit)
+        
+    if offset > 0:
+        query += " OFFSET ?"
+        params.append(offset)
+    
+    # Execute query
+    cursor.execute(query, params)
+    
+    # Process results
+    content_items = []
+    for row in cursor.fetchall():
+        (content_id, source_type_id, source_id, title, description, 
+         content, date_created, metadata, source_type_name) = row
+        
+        content_items.append({
+            'id': content_id,
+            'source_type_id': source_type_id,
+            'source_id': source_id,
+            'title': title,
+            'description': description,
+            'content': content,
+            'date_created': date_created,
+            'metadata': metadata,
+            'source_type_name': source_type_name
+        })
+    
+    return content_items
+
+def process_content_items(content_items: List[Dict[str, Any]], 
+                         chunk_size: int = 500,
+                         chunk_overlap: int = 100) -> Tuple[int, int, int]:
+    """
+    Process content items, chunk text, and generate embeddings
+    
+    Args:
+        content_items: List of content items
+        chunk_size: Size of each chunk in characters
+        chunk_overlap: Overlap between chunks in characters
+        
+    Returns:
+        Tuple of (total_items, successful_items, total_chunks)
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_PATH)
+        ensure_embedding_table_exists(conn)
+        cursor = conn.cursor()
+        
+        # Create embedding generator
+        embedding_generator = EmbeddingGenerator()
+        model_name = embedding_generator.model_name
+        
+        # Track statistics
+        total_items = len(content_items)
+        successful_items = 0
+        total_chunks = 0
+        start_time = time.time()
+        
+        # Process each content item
+        for i, item in enumerate(content_items):
+            try:
+                # Prepare text for chunking (combine title, description, content)
+                text = prepare_content_for_embedding(
+                    title=item.get('title', ''),
+                    description=item.get('description', ''),
+                    content=item.get('content', '')
+                )
+                
+                # Skip if no text
+                if not text.strip():
+                    logger.warning(f"Skipping content {item['id']} - no text content")
+                    continue
+                
+                # Chunk text
+                text_chunks = chunk_text(text, chunk_size=chunk_size, overlap=chunk_overlap)
+                
+                # Process each chunk
+                for chunk_idx, chunk_content in enumerate(text_chunks):
+                    # Generate embedding
+                    embedding = embedding_generator.generate_embedding(chunk_content)
+                    
+                    if embedding is not None:
+                        # Serialize embedding (binary pickle)
+                        import pickle
+                        embedding_binary = pickle.dumps(embedding)
+                        
+                        # Store in database
+                        cursor.execute("""
+                            INSERT OR REPLACE INTO content_embeddings
+                            (content_id, chunk_index, chunk_text, embedding_vector, embedding_model, date_created)
+                            VALUES (?, ?, ?, ?, ?, ?)
+                        """, (
+                            item['id'],
+                            chunk_idx,
+                            chunk_content,
+                            embedding_binary,
+                            model_name,
+                            datetime.now().isoformat()
+                        ))
+                        
+                        total_chunks += 1
+                
+                # Commit after each item
+                conn.commit()
+                
+                successful_items += 1
+                
+                # Log progress
+                if (i + 1) % 10 == 0 or (i + 1) == total_items:
+                    elapsed = time.time() - start_time
+                    avg_time = elapsed / (i + 1)
+                    logger.info(f"Processed {i+1}/{total_items} items, {total_chunks} chunks "
+                                f"({successful_items} successful), "
+                                f"avg {avg_time:.2f}s per item")
+            
+            except Exception as e:
+                logger.error(f"Error processing content {item['id']}: {str(e)}")
+                # Continue with next item
+                continue
+        
+        return total_items, successful_items, total_chunks
+        
+    except Exception as e:
+        logger.error(f"Error in process_content_items: {str(e)}")
+        if conn:
+            conn.rollback()
+        return len(content_items), 0, 0
+        
+    finally:
+        if conn:
+            conn.close()
+
+def main():
+    """Main function for script execution"""
+    parser = argparse.ArgumentParser(
+        description="Generate embeddings for content in the database"
+    )
+    
+    parser.add_argument(
+        "--source-type", 
+        help="Process only content of this source type (e.g., 'instagram', 'github', 'arxiv')"
+    )
+    
+    parser.add_argument(
+        "--limit", type=int, 
+        help="Maximum number of items to process"
+    )
+    
+    parser.add_argument(
+        "--batch-size", type=int, default=100,
+        help="Number of items to process in each batch"
+    )
+    
+    parser.add_argument(
+        "--chunk-size", type=int, default=500,
+        help="Size of text chunks in characters"
+    )
+    
+    parser.add_argument(
+        "--chunk-overlap", type=int, default=100,
+        help="Overlap between text chunks in characters"
+    )
+    
+    parser.add_argument(
+        "--force", action="store_true",
+        help="Process items even if they already have embeddings"
+    )
+    
+    parser.add_argument(
+        "--stats", action="store_true",
+        help="Show database statistics and exit"
+    )
+    
+    args = parser.parse_args()
+    
+    # Create logs directory if it doesn't exist
+    os.makedirs("logs", exist_ok=True)
+    
+    # Connect to database
+    conn = sqlite3.connect(config.DB_PATH)
+    
+    if args.stats:
+        # Show database statistics
+        cursor = conn.cursor()
+        
+        # Get total content count
+        cursor.execute("SELECT COUNT(*) FROM ai_content")
+        total_content = cursor.fetchone()[0]
+        
+        # Get count by source type
+        cursor.execute("""
+            SELECT st.name, COUNT(*)
+            FROM ai_content c
+            JOIN source_types st ON c.source_type_id = st.id
+            GROUP BY st.name
+        """)
+        
+        counts_by_source = cursor.fetchall()
+        
+        # Get embedding statistics
+        cursor.execute("""
+            SELECT COUNT(*) FROM content_embeddings
+        """)
+        
+        total_embeddings = cursor.fetchone()[0]
+        
+        cursor.execute("""
+            SELECT COUNT(DISTINCT content_id) FROM content_embeddings
+        """)
+        
+        content_with_embeddings = cursor.fetchone()[0]
+        
+        # Print statistics
+        print("\nDatabase Statistics:")
+        print("=" * 40)
+        print(f"Total content items: {total_content}")
+        print(f"Content items with embeddings: {content_with_embeddings}")
+        print(f"Total embedding chunks: {total_embeddings}")
+        print("\nContent by source type:")
+        
+        for source_name, count in counts_by_source:
+            print(f"- {source_name}: {count}")
+        
+        # Calculate items without embeddings
+        items_without_embeddings = total_content - content_with_embeddings
+        print(f"\nContent items without embeddings: {items_without_embeddings}")
+        
+        conn.close()
+        return
+    
+    # Start processing
+    logger.info("Starting embedding generation...")
+    logger.info(f"Source type: {args.source_type if args.source_type else 'all'}")
+    logger.info(f"Limit: {args.limit if args.limit else 'none'}")
+    logger.info(f"Batch size: {args.batch_size}")
+    logger.info(f"Chunk size: {args.chunk_size}")
+    logger.info(f"Chunk overlap: {args.chunk_overlap}")
+    logger.info(f"Force reprocess: {args.force}")
+    
+    # Initialize counters
+    total_processed = 0
+    total_successful = 0
+    total_chunks = 0
+    
+    # Process in batches
+    offset = 0
+    while True:
+        # Get batch of content items
+        conn = sqlite3.connect(config.DB_PATH)
+        content_items = get_content_items(
+            conn,
+            source_type=args.source_type,
+            limit=args.batch_size,
+            offset=offset,
+            skip_existing=not args.force
+        )
+        conn.close()
+        
+        # Exit if no more items
+        if not content_items:
+            break
+        
+        # Process batch
+        logger.info(f"Processing batch of {len(content_items)} items (offset {offset})...")
+        
+        batch_total, batch_successful, batch_chunks = process_content_items(
+            content_items,
+            chunk_size=args.chunk_size,
+            chunk_overlap=args.chunk_overlap
+        )
+        
+        # Update counters
+        total_processed += batch_total
+        total_successful += batch_successful
+        total_chunks += batch_chunks
+        
+        # Update offset for next batch
+        offset += len(content_items)
+        
+        # Exit if limit reached
+        if args.limit and total_processed >= args.limit:
+            break
+    
+    # Log final statistics
+    logger.info("Embedding generation complete!")
+    logger.info(f"Total items processed: {total_processed}")
+    logger.info(f"Successfully processed: {total_successful}")
+    logger.info(f"Total chunks generated: {total_chunks}")
+    
+if __name__ == "__main__":
+    main() 
+
+================================================================================
 File: github_collector.py
 ================================================================================
 
@@ -3539,6 +4399,733 @@ if __name__ == "__main__":
     collect_github_repos() 
 
 ================================================================================
+File: hybrid_search.py
+================================================================================
+
+"""
+Hybrid Search Module
+
+This module combines vector search and keyword search to provide more accurate
+and relevant search results. It implements adaptive weighting between the two search
+techniques based on the query characteristics.
+"""
+import os
+import logging
+import sqlite3
+import json
+import re
+from datetime import datetime
+from typing import List, Dict, Any, Optional, Tuple, Union
+
+# Import local modules
+import config
+from embeddings import EmbeddingGenerator
+from vector_search import search_by_text, enrich_search_results
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger('hybrid_search')
+
+def keyword_search(query: str, top_k: int = 10, 
+                  source_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Perform keyword search using SQLite FTS
+    
+    Args:
+        query: The search query
+        top_k: Maximum number of results to return
+        source_type: Optional filter for source type
+        
+    Returns:
+        List of search results
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_PATH)
+        cursor = conn.cursor()
+        
+        # Check if FTS table exists
+        cursor.execute("""
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name='ai_content_fts'
+        """)
+        
+        if not cursor.fetchone():
+            logger.warning("FTS table does not exist, creating it...")
+            # Create FTS table
+            cursor.execute("""
+                CREATE VIRTUAL TABLE IF NOT EXISTS ai_content_fts USING fts5(
+                    title, description, content, 
+                    content='ai_content', content_rowid='id'
+                )
+            """)
+            
+            # Populate FTS table
+            cursor.execute("""
+                INSERT INTO ai_content_fts(rowid, title, description, content)
+                SELECT id, title, description, content FROM ai_content
+            """)
+            
+            conn.commit()
+        
+        # Build search query
+        search_terms = " OR ".join([f'"{term}"' for term in query.split()])
+        fts_query = f"{search_terms}"
+        
+        sql_query = """
+            SELECT 
+                c.id, c.title, c.description, c.date_created, 
+                c.source_type_id, st.name as source_type_name,
+                snippet(ai_content_fts, 2, '<b>', '</b>', '...', 30) as snippet,
+                rank
+            FROM ai_content_fts
+            JOIN ai_content c ON c.id = ai_content_fts.rowid
+            JOIN source_types st ON c.source_type_id = st.id
+        """
+        
+        params = []
+        
+        # Add source type filter if provided
+        if source_type:
+            cursor.execute("SELECT id FROM source_types WHERE name = ?", (source_type,))
+            source_type_id = cursor.fetchone()
+            if source_type_id:
+                sql_query += " WHERE c.source_type_id = ?"
+                params.append(source_type_id[0])
+            else:
+                logger.warning(f"Source type '{source_type}' not found")
+        
+        # Add search condition and order by rank
+        sql_query += f""" 
+            {'WHERE' if not source_type else 'AND'} ai_content_fts MATCH ?
+            ORDER BY rank
+            LIMIT ?
+        """
+        
+        params.extend([fts_query, top_k])
+        
+        # Execute query
+        cursor.execute(sql_query, params)
+        
+        # Process results
+        results = []
+        for row in cursor.fetchall():
+            content_id, title, description, date_created, source_type_id, source_type_name, snippet, rank = row
+            
+            # Rank is between 0 (best) and 1 (worst), invert for consistency with vector search
+            normalized_score = 1.0 - (float(rank) / 1000.0 if float(rank) > 0 else 0)
+            
+            # Add to results
+            results.append({
+                'content_id': content_id,
+                'title': title,
+                'description': description,
+                'date_created': date_created,
+                'source_type': source_type_name,
+                'snippet': snippet,
+                'score': normalized_score,
+                'search_type': 'keyword'
+            })
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error in keyword search: {str(e)}")
+        return []
+        
+    finally:
+        if conn:
+            conn.close()
+
+def get_content_chunks(content_id: int, limit: int = 3) -> List[Dict[str, Any]]:
+    """
+    Get chunks for a content item
+    
+    Args:
+        content_id: The content ID
+        limit: Maximum number of chunks to return
+        
+    Returns:
+        List of chunks with text and metadata
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_PATH)
+        cursor = conn.cursor()
+        
+        # Get chunks for the content item
+        cursor.execute("""
+            SELECT 
+                ce.chunk_index, ce.chunk_text,
+                ac.title, ac.description, ac.source_type_id, st.name as source_type_name
+            FROM content_embeddings ce
+            JOIN ai_content ac ON ce.content_id = ac.id
+            JOIN source_types st ON ac.source_type_id = st.id
+            WHERE ce.content_id = ?
+            ORDER BY ce.chunk_index
+            LIMIT ?
+        """, (content_id, limit))
+        
+        chunks = []
+        for row in cursor.fetchall():
+            chunk_index, chunk_text, title, description, source_type_id, source_type_name = row
+            
+            chunks.append({
+                'content_id': content_id,
+                'chunk_index': chunk_index,
+                'chunk_text': chunk_text,
+                'title': title,
+                'description': description,
+                'source_type': source_type_name
+            })
+        
+        return chunks
+        
+    except Exception as e:
+        logger.error(f"Error getting content chunks: {str(e)}")
+        return []
+        
+    finally:
+        if conn:
+            conn.close()
+
+def determine_weights(query: str) -> Tuple[float, float]:
+    """
+    Determine weights for vector and keyword search based on query characteristics
+    
+    Args:
+        query: The search query
+        
+    Returns:
+        Tuple of (vector_weight, keyword_weight)
+    """
+    # Default weights
+    default_vector_weight = 0.7
+    default_keyword_weight = 0.3
+    
+    # Check for code indicators
+    code_patterns = [
+        r'\bcode\b', r'\bfunction\b', r'\bclass\b', r'\bmethod\b',
+        r'\bimport\b', r'\bdef\b', r'\bpython\b', r'\bjava\b', 
+        r'\bjavascript\b', r'\bjs\b', r'\bc\+\+\b', r'\bsql\b'
+    ]
+    
+    # Check for factual query indicators
+    factual_patterns = [
+        r'\bwho\b', r'\bwhat\b', r'\bwhen\b', r'\bwhere\b', 
+        r'\bhow\b', r'\bwhy\b', r'\bdate\b', r'\byear\b',
+        r'\bauthor\b', r'\bcreator\b', r'\bversions?\b'
+    ]
+    
+    # Check for concept query indicators
+    concept_patterns = [
+        r'\bconcept\b', r'\btheory\b', r'\bframework\b', r'\barchitecture\b',
+        r'\bparadigm\b', r'\bpattern\b', r'\bapproach\b', r'\bstrategy\b',
+        r'\bexplain\b', r'\bdescribe\b', r'\bcompare\b', r'\banalyze\b'
+    ]
+    
+    # Count matches for each category
+    code_matches = sum(1 for pattern in code_patterns if re.search(pattern, query.lower()))
+    factual_matches = sum(1 for pattern in factual_patterns if re.search(pattern, query.lower()))
+    concept_matches = sum(1 for pattern in concept_patterns if re.search(pattern, query.lower()))
+    
+    # Adjust weights based on query type
+    if code_matches > 0:
+        # Code queries benefit from more keyword search
+        vector_weight = 0.5
+        keyword_weight = 0.5
+    elif factual_matches > concept_matches:
+        # Factual queries benefit from more keyword search
+        vector_weight = 0.6
+        keyword_weight = 0.4
+    elif concept_matches > 0:
+        # Concept queries benefit from more vector search
+        vector_weight = 0.8
+        keyword_weight = 0.2
+    else:
+        # Use default weights
+        vector_weight = default_vector_weight
+        keyword_weight = default_keyword_weight
+    
+    # Also consider query length and specificity
+    query_words = query.split()
+    
+    if len(query_words) <= 2:
+        # Short queries often benefit from more keyword search
+        vector_weight = max(0.4, vector_weight - 0.1)
+        keyword_weight = 1.0 - vector_weight
+    elif len(query_words) >= 6:
+        # Longer queries often benefit from more vector search
+        vector_weight = min(0.9, vector_weight + 0.1)
+        keyword_weight = 1.0 - vector_weight
+    
+    # Check for exact quotes which indicates keyword preference
+    if '"' in query:
+        vector_weight = max(0.3, vector_weight - 0.2)
+        keyword_weight = 1.0 - vector_weight
+    
+    return vector_weight, keyword_weight
+
+def hybrid_search(query: str, top_k: int = 5, 
+                 source_type: Optional[str] = None,
+                 vector_weight: Optional[float] = None,
+                 keyword_weight: Optional[float] = None,
+                 embedding_generator: Optional[EmbeddingGenerator] = None) -> List[Dict[str, Any]]:
+    """
+    Perform hybrid search combining vector and keyword search
+    
+    Args:
+        query: The search query
+        top_k: Maximum number of results to return
+        source_type: Optional filter for source type
+        vector_weight: Weight for vector search results (0-1)
+        keyword_weight: Weight for keyword search results (0-1)
+        embedding_generator: Optional pre-initialized embedding generator
+        
+    Returns:
+        List of search results with combined scores
+    """
+    try:
+        # Determine weights if not provided
+        if vector_weight is None or keyword_weight is None:
+            vector_weight, keyword_weight = determine_weights(query)
+        
+        logger.info(f"Hybrid search for '{query}' with weights: vector={vector_weight:.2f}, keyword={keyword_weight:.2f}")
+        
+        # Double the top_k for individual searches to have more candidates to combine
+        expanded_top_k = top_k * 2
+        
+        # Perform vector search
+        vector_results = search_by_text(
+            query_text=query,
+            top_k=expanded_top_k,
+            source_type=source_type,
+            embedding_generator=embedding_generator
+        )
+        
+        # Convert vector results format
+        formatted_vector_results = []
+        for result in vector_results:
+            formatted_vector_results.append({
+                'content_id': result['content_id'],
+                'chunk_index': result.get('chunk_index', 0),
+                'score': result['similarity'],
+                'chunk_text': result.get('chunk_text', ''),
+                'title': result.get('title', ''),
+                'source_type': result.get('source_type', ''),
+                'search_type': 'vector'
+            })
+        
+        # Perform keyword search
+        keyword_results = keyword_search(
+            query=query,
+            top_k=expanded_top_k,
+            source_type=source_type
+        )
+        
+        # Combine results
+        all_results = {}
+        
+        # Add vector results
+        for result in formatted_vector_results:
+            content_id = result['content_id']
+            # Use the content_id as the key to avoid duplicates
+            if content_id not in all_results:
+                all_results[content_id] = {
+                    'content_id': content_id,
+                    'vector_score': result['score'],
+                    'keyword_score': 0.0,
+                    'chunk_text': result.get('chunk_text', ''),
+                    'title': result.get('title', ''),
+                    'source_type': result.get('source_type', ''),
+                    'has_vector_match': True,
+                    'has_keyword_match': False,
+                    'search_type': 'hybrid'
+                }
+            else:
+                # Update if the new vector score is higher
+                if result['score'] > all_results[content_id]['vector_score']:
+                    all_results[content_id]['vector_score'] = result['score']
+                    all_results[content_id]['chunk_text'] = result.get('chunk_text', '')
+        
+        # Add keyword results
+        for result in keyword_results:
+            content_id = result['content_id']
+            if content_id not in all_results:
+                # Get chunks for this content
+                chunks = get_content_chunks(content_id, limit=1)
+                chunk_text = chunks[0]['chunk_text'] if chunks else ''
+                
+                all_results[content_id] = {
+                    'content_id': content_id,
+                    'vector_score': 0.0,
+                    'keyword_score': result['score'],
+                    'chunk_text': chunk_text,
+                    'title': result.get('title', ''),
+                    'snippet': result.get('snippet', ''),
+                    'source_type': result.get('source_type', ''),
+                    'has_vector_match': False,
+                    'has_keyword_match': True,
+                    'search_type': 'hybrid'
+                }
+            else:
+                # Update keyword score and flag
+                all_results[content_id]['keyword_score'] = result['score']
+                all_results[content_id]['has_keyword_match'] = True
+                all_results[content_id]['snippet'] = result.get('snippet', '')
+        
+        # Calculate combined scores
+        for content_id, result in all_results.items():
+            result['combined_score'] = (
+                vector_weight * result['vector_score'] + 
+                keyword_weight * result['keyword_score']
+            )
+        
+        # Convert to list and sort by combined score
+        results_list = list(all_results.values())
+        results_list.sort(key=lambda x: x['combined_score'], reverse=True)
+        
+        # Add query to results
+        for result in results_list:
+            result['query'] = query
+        
+        # Return top k results
+        top_results = results_list[:top_k]
+        
+        # Enrich the top results with additional metadata
+        return enrich_search_results(top_results)
+        
+    except Exception as e:
+        logger.error(f"Error in hybrid search: {str(e)}")
+        return []
+
+def adjust_weights_from_feedback(query: str, result_id: int, 
+                                feedback: str, 
+                                weight_history: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+    """
+    Adjust search weights based on user feedback
+    
+    Args:
+        query: The search query
+        result_id: The ID of the result that received feedback
+        feedback: The feedback ('relevant' or 'not_relevant')
+        weight_history: Optional history of weight adjustments
+        
+    Returns:
+        Updated weight history
+    """
+    # Initialize weight history if not provided
+    if weight_history is None:
+        weight_history = {
+            'queries': {},
+            'default_vector_weight': 0.7,
+            'default_keyword_weight': 0.3,
+        }
+    
+    # Normalize query for consistent keys
+    normalized_query = query.lower().strip()
+    query_type = classify_query_type(query)
+    
+    # Initialize query entry if it doesn't exist
+    if normalized_query not in weight_history['queries']:
+        weight_history['queries'][normalized_query] = {
+            'vector_weight': weight_history.get('default_vector_weight', 0.7),
+            'keyword_weight': weight_history.get('default_keyword_weight', 0.3),
+            'feedback_count': 0,
+            'query_type': query_type
+        }
+    
+    # Get current weights
+    current = weight_history['queries'][normalized_query]
+    
+    # Adjust weights based on feedback and result type
+    conn = None
+    try:
+        # Connect to DB to get information about the result
+        conn = sqlite3.connect(config.DB_PATH)
+        cursor = conn.cursor()
+        
+        # Check if the result exists in vector search
+        cursor.execute("""
+            SELECT COUNT(*) FROM content_embeddings
+            WHERE content_id = ?
+        """, (result_id,))
+        
+        has_vector_match = cursor.fetchone()[0] > 0
+        
+        # Check if result exists in keyword search (FTS)
+        cursor.execute("""
+            SELECT COUNT(*) FROM ai_content_fts
+            WHERE rowid = ?
+        """, (result_id,))
+        
+        has_keyword_match = cursor.fetchone()[0] > 0
+        
+        # Adjust weights
+        adjustment = 0.05  # Small adjustment step
+        
+        if feedback == 'relevant':
+            # Positive feedback - increase weight for the type that matched
+            if has_vector_match and not has_keyword_match:
+                # Only vector matched, increase vector weight
+                current['vector_weight'] = min(0.95, current['vector_weight'] + adjustment)
+                current['keyword_weight'] = 1.0 - current['vector_weight']
+            elif has_keyword_match and not has_vector_match:
+                # Only keyword matched, increase keyword weight
+                current['keyword_weight'] = min(0.95, current['keyword_weight'] + adjustment)
+                current['vector_weight'] = 1.0 - current['keyword_weight']
+            # If both matched, no adjustment needed
+        elif feedback == 'not_relevant':
+            # Negative feedback - decrease weight for the type that matched
+            if has_vector_match and not has_keyword_match:
+                # Only vector matched, decrease vector weight
+                current['vector_weight'] = max(0.05, current['vector_weight'] - adjustment)
+                current['keyword_weight'] = 1.0 - current['vector_weight']
+            elif has_keyword_match and not has_vector_match:
+                # Only keyword matched, decrease keyword weight
+                current['keyword_weight'] = max(0.05, current['keyword_weight'] - adjustment)
+                current['vector_weight'] = 1.0 - current['keyword_weight']
+            # If both matched, no adjustment needed
+        
+        # Increment feedback count
+        current['feedback_count'] += 1
+        
+        # Update query type specific defaults
+        if current['feedback_count'] >= 3:
+            # Update default weights for this query type
+            query_type_key = f"default_{query_type}_vector_weight"
+            if query_type_key not in weight_history:
+                weight_history[query_type_key] = weight_history['default_vector_weight']
+            
+            # Update with running average
+            weight_history[query_type_key] = (
+                weight_history[query_type_key] * 0.8 + 
+                current['vector_weight'] * 0.2
+            )
+        
+        return weight_history
+        
+    except Exception as e:
+        logger.error(f"Error adjusting weights from feedback: {str(e)}")
+        return weight_history
+        
+    finally:
+        if conn:
+            conn.close()
+
+def classify_query_type(query: str) -> str:
+    """
+    Classify the query type based on its characteristics
+    
+    Args:
+        query: The search query
+        
+    Returns:
+        Query type classification
+    """
+    query_lower = query.lower()
+    
+    # Check for code queries
+    code_patterns = [
+        r'\bcode\b', r'\bfunction\b', r'\bclass\b', r'\bmethod\b',
+        r'\bimport\b', r'\bdef\b', r'\bpython\b', r'\bjava\b', 
+        r'\bjavascript\b', r'\bjs\b', r'\bc\+\+\b', r'\bsql\b'
+    ]
+    
+    # Check for factual queries
+    factual_patterns = [
+        r'\bwho\b', r'\bwhat\b', r'\bwhen\b', r'\bwhere\b', 
+        r'\bhow\b', r'\bwhy\b', r'\bdate\b', r'\byear\b',
+        r'\bauthor\b', r'\bcreator\b', r'\bversions?\b'
+    ]
+    
+    # Check for concept queries
+    concept_patterns = [
+        r'\bconcept\b', r'\btheory\b', r'\bframework\b', r'\barchitecture\b',
+        r'\bparadigm\b', r'\bpattern\b', r'\bapproach\b', r'\bstrategy\b',
+        r'\bexplain\b', r'\bdescribe\b', r'\bcompare\b', r'\banalyze\b'
+    ]
+    
+    # Count matches for each category
+    code_matches = sum(1 for pattern in code_patterns if re.search(pattern, query_lower))
+    factual_matches = sum(1 for pattern in factual_patterns if re.search(pattern, query_lower))
+    concept_matches = sum(1 for pattern in concept_patterns if re.search(pattern, query_lower))
+    
+    # Determine query type
+    if code_matches > max(factual_matches, concept_matches):
+        return 'code'
+    elif factual_matches > concept_matches:
+        return 'factual'
+    elif concept_matches > 0:
+        return 'concept'
+    else:
+        # Check for other characteristics
+        if len(query.split()) >= 6:
+            return 'long'
+        elif '"' in query:
+            return 'exact'
+        else:
+            return 'general'
+
+def save_weights_history(weight_history: Dict[str, Any], 
+                        filepath: str = 'data/search_weights.json') -> None:
+    """
+    Save weight history to a JSON file
+    
+    Args:
+        weight_history: Weight history dictionary
+        filepath: Path to save the JSON file
+    """
+    try:
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(filepath), exist_ok=True)
+        
+        # Save to file
+        with open(filepath, 'w') as f:
+            json.dump(weight_history, f, indent=2)
+            
+        logger.info(f"Weight history saved to {filepath}")
+            
+    except Exception as e:
+        logger.error(f"Error saving weight history: {str(e)}")
+
+def load_weights_history(filepath: str = 'data/search_weights.json') -> Dict[str, Any]:
+    """
+    Load weight history from a JSON file
+    
+    Args:
+        filepath: Path to the JSON file
+        
+    Returns:
+        Weight history dictionary
+    """
+    default_history = {
+        'queries': {},
+        'default_vector_weight': 0.7,
+        'default_keyword_weight': 0.3,
+        'default_code_vector_weight': 0.5,
+        'default_factual_vector_weight': 0.6,
+        'default_concept_vector_weight': 0.8,
+        'default_long_vector_weight': 0.75,
+        'default_exact_vector_weight': 0.4,
+        'default_general_vector_weight': 0.7,
+        'last_updated': datetime.now().isoformat()
+    }
+    
+    try:
+        # Check if file exists
+        if not os.path.exists(filepath):
+            logger.info(f"Weight history file not found, using defaults")
+            return default_history
+        
+        # Load from file
+        with open(filepath, 'r') as f:
+            history = json.load(f)
+            
+        logger.info(f"Weight history loaded from {filepath}")
+        
+        # Update last loaded time
+        history['last_updated'] = datetime.now().isoformat()
+        
+        return history
+            
+    except Exception as e:
+        logger.error(f"Error loading weight history: {str(e)}")
+        return default_history
+
+def main():
+    """Main function for direct script execution"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Hybrid search for content")
+    parser.add_argument("query", help="Query text")
+    parser.add_argument("--top-k", type=int, default=5, help="Number of results to show")
+    parser.add_argument("--source-type", help="Filter by source type")
+    parser.add_argument("--vector-weight", type=float, help="Weight for vector search (0-1)")
+    parser.add_argument("--keyword-weight", type=float, help="Weight for keyword search (0-1)")
+    parser.add_argument("--adaptive", action="store_true", help="Use adaptive weights based on query")
+    
+    args = parser.parse_args()
+    
+    # Set weights
+    vector_weight = args.vector_weight
+    keyword_weight = args.keyword_weight
+    
+    # If adaptive or weights not provided, determine automatically
+    if args.adaptive or (vector_weight is None and keyword_weight is None):
+        # Load weight history
+        weight_history = load_weights_history()
+        
+        # Get query type
+        query_type = classify_query_type(args.query)
+        
+        # Use query-specific weights if available
+        normalized_query = args.query.lower().strip()
+        if normalized_query in weight_history['queries']:
+            vector_weight = weight_history['queries'][normalized_query]['vector_weight']
+            keyword_weight = weight_history['queries'][normalized_query]['keyword_weight']
+            print(f"Using query-specific weights: vector={vector_weight:.2f}, keyword={keyword_weight:.2f}")
+        else:
+            # Use query type defaults
+            type_key = f"default_{query_type}_vector_weight"
+            if type_key in weight_history:
+                vector_weight = weight_history[type_key]
+                keyword_weight = 1.0 - vector_weight
+                print(f"Using {query_type} query type weights: vector={vector_weight:.2f}, keyword={keyword_weight:.2f}")
+            else:
+                # Determine weights based on query
+                vector_weight, keyword_weight = determine_weights(args.query)
+                print(f"Using determined weights: vector={vector_weight:.2f}, keyword={keyword_weight:.2f}")
+    
+    # Perform search
+    results = hybrid_search(
+        query=args.query,
+        top_k=args.top_k,
+        source_type=args.source_type,
+        vector_weight=vector_weight,
+        keyword_weight=keyword_weight
+    )
+    
+    # Display results
+    print(f"\nHybrid search results for: {args.query}")
+    print(f"Weights: vector={vector_weight:.2f}, keyword={keyword_weight:.2f}")
+    print("=" * 80)
+    
+    for i, result in enumerate(results):
+        print(f"\nResult {i+1} - Combined Score: {result.get('combined_score', 0):.4f}")
+        print(f"Vector Score: {result.get('vector_score', 0):.4f}, Keyword Score: {result.get('keyword_score', 0):.4f}")
+        print(f"Title: {result.get('title', 'Unknown')}")
+        print(f"Source: {result.get('source_type', 'Unknown')}")
+        print(f"Content ID: {result['content_id']}")
+        print("-" * 40)
+        
+        # Show snippet or chunk text
+        if 'snippet' in result and result['snippet']:
+            print(f"Keyword Match: {result['snippet']}")
+        
+        if 'chunk_text' in result and result['chunk_text']:
+            text = result['chunk_text']
+            print(text[:300] + "..." if len(text) > 300 else text)
+        
+        print("-" * 40)
+        
+        # Display concepts if available
+        if 'concepts' in result:
+            print("Concepts:")
+            for concept in result['concepts'][:5]:  # Show top 5 concepts
+                print(f"- {concept['name']} ({concept['category']}, {concept['importance']})")
+        
+        print()
+    
+    return results
+
+if __name__ == "__main__":
+    main() 
+
+================================================================================
 File: indexer.py
 ================================================================================
 
@@ -3900,6 +5487,157 @@ if __name__ == "__main__":
     init_database() 
 
 ================================================================================
+File: README_VECTOR_SEARCH.md
+================================================================================
+
+# Vector Search in Instagram Knowledge Base
+
+This document explains how to use the vector search capabilities of the Instagram Knowledge Base system. Vector search provides semantic search capabilities, allowing users to find content based on meaning rather than just keywords.
+
+## Installation
+
+First, make sure you have all the necessary dependencies installed:
+
+```bash
+pip install -r requirements.txt
+```
+
+Some additional dependencies for vector search might require specific system packages. If you encounter any issues during installation, check the error messages for specific requirements.
+
+## Database Migration
+
+Before using vector search, make sure your database is migrated to the latest schema:
+
+```bash
+python run.py --migrate
+```
+
+This will create all necessary tables, including:
+- `content_embeddings`: Stores vector embeddings for content chunks
+- `ai_content`: Unified content storage across different source types
+- `ai_content_fts`: Full-text search virtual table for keyword search
+
+## Generating Embeddings
+
+Before you can search, you need to generate embeddings for your content:
+
+```bash
+python run.py --generate-embeddings
+```
+
+This will generate vector embeddings for all content in your database. You can customize the process with these options:
+
+- `--embeddings-source [research_paper|github|instagram]`: Only generate embeddings for a specific content type
+- `--embeddings-limit N`: Process only N content items
+- `--embeddings-batch N`: Process in batches of N items (default: 50)
+- `--embeddings-chunk N`: Set chunk size in characters (default: 500)
+- `--embeddings-overlap N`: Set chunk overlap in characters (default: 100)
+- `--embeddings-force`: Regenerate embeddings for content that already has them
+
+Example:
+```bash
+python run.py --generate-embeddings --embeddings-source research_paper --embeddings-limit 100 --embeddings-chunk 1000 --embeddings-overlap 200
+```
+
+## Performing Searches
+
+### Vector Search
+
+Vector search finds content semantically similar to the query:
+
+```bash
+python run.py --vector-search "deep learning techniques for image classification"
+```
+
+Options:
+- `--search-top-k N`: Return top N results (default: 5)
+- `--search-source [research_paper|github|instagram]`: Search only in a specific content type
+- `--in-memory-index`: Use in-memory indexing for faster searches (uses more RAM)
+
+### Hybrid Search
+
+Hybrid search combines vector search with keyword search for better results:
+
+```bash
+python run.py --hybrid-search "deep learning techniques for image classification"
+```
+
+Options:
+- `--search-top-k N`: Return top N results (default: 5)
+- `--search-source [research_paper|github|instagram]`: Search only in a specific content type
+- `--vector-weight N`: Weight for vector search component (0-1)
+- `--keyword-weight N`: Weight for keyword search component (0-1)
+- `--adaptive-weights`: Use adaptive weighting based on query type (default: true)
+
+If you don't specify weights, the system will automatically determine appropriate weights based on the query characteristics.
+
+## Query Types and Weight Adaptation
+
+The system classifies queries into several types and applies different vector-to-keyword weights:
+
+1. **Code Queries** (e.g., "python function for sorting arrays"): 0.5:0.5
+2. **Factual Queries** (e.g., "when was transformer architecture introduced"): 0.6:0.4
+3. **Concept Queries** (e.g., "explain attention mechanism in transformers"): 0.8:0.2
+4. **Short Queries** (1-2 words): Reduce vector weight by 0.1
+5. **Long Queries** (6+ words): Increase vector weight by 0.1
+6. **Exact Match Queries** (with quotes): Reduce vector weight by 0.2
+
+The system learns from user feedback to improve these weights over time.
+
+## Advanced: Directly Using the Modules
+
+For more advanced usage, you can import the modules directly in your code:
+
+```python
+from embeddings import EmbeddingGenerator
+from vector_search import search_by_text
+from hybrid_search import hybrid_search
+
+# Generate embeddings for a query
+embedding_generator = EmbeddingGenerator()
+query_embedding = embedding_generator.generate_embedding("your query text")
+
+# Perform vector search
+vector_results = search_by_text(
+    query_text="your query text",
+    top_k=5,
+    embedding_generator=embedding_generator
+)
+
+# Perform hybrid search
+hybrid_results = hybrid_search(
+    query="your query text",
+    top_k=5,
+    vector_weight=0.7,
+    keyword_weight=0.3
+)
+```
+
+## Troubleshooting
+
+### Missing Sentence Transformers Model
+
+If you see an error about missing models, the system will fall back to a simpler TF-IDF based embedding. For better results, make sure you have internet access during the first run so the model can be downloaded.
+
+### Performance Issues
+
+- For large databases, use `--in-memory-index` for faster searching
+- Adjust chunk size and overlap based on your content type
+- Use more specific queries for better results
+
+### No Search Results
+
+- Make sure you've generated embeddings first
+- Check if you have content in your database
+- Try using broader queries or different source types
+
+## Further Reading
+
+- Learn more about vector search in the code comments in `/home/adi235/MistralOCR/Instagram-Scraper/vector_search.py`
+- Check hybrid search implementation in `/home/adi235/MistralOCR/Instagram-Scraper/hybrid_search.py`
+- See the chunking strategy in `/home/adi235/MistralOCR/Instagram-Scraper/chunking.py` 
+
+================================================================================
 File: README.md
 ================================================================================
 
@@ -3933,9 +5671,18 @@ try:
     import github_collector
     import arxiv_collector
     import concept_extractor
+    import chunking
+    import embeddings
+    import generate_embeddings
+    import vector_search
+    import hybrid_search
     has_additional_modules = True
-except ImportError:
+    has_vector_search = True
+except ImportError as e:
     has_additional_modules = False
+    has_vector_search = False
+    import_error = str(e)
+    missing_module = str(e).split("No module named ")[-1].strip("'")
 
 # Configure logging
 logging.basicConfig(
@@ -3951,6 +5698,7 @@ logger = logging.getLogger('main')
 def setup():
     """Setup necessary directories"""
     os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs('logs', exist_ok=True)
 
 def run_downloader():
     """Run the Instagram downloader"""
@@ -4046,6 +5794,189 @@ def run_concept_extractor(limit=None, source_type=None):
         
         logger.info(f"Concept extraction completed in {time() - start_time:.2f} seconds, processed {total_processed} items")
 
+def run_embedding_generation(source_type=None, limit=None, batch_size=50, 
+                           chunk_size=500, chunk_overlap=100, force=False):
+    """Generate embeddings for content"""
+    if not has_vector_search:
+        logger.error(f"Vector search modules not available: {import_error}")
+        return
+    
+    logger.info("Starting embedding generation")
+    start_time = time()
+    
+    args = []
+    if source_type:
+        args.extend(["--source-type", source_type])
+    
+    if limit:
+        args.extend(["--limit", str(limit)])
+    
+    if batch_size:
+        args.extend(["--batch-size", str(batch_size)])
+    
+    if chunk_size:
+        args.extend(["--chunk-size", str(chunk_size)])
+    
+    if chunk_overlap:
+        args.extend(["--chunk-overlap", str(chunk_overlap)])
+    
+    if force:
+        args.append("--force")
+    
+    # Run embedding generator script
+    import sys
+    old_args = sys.argv
+    sys.argv = ["generate_embeddings.py"] + args
+    try:
+        generate_embeddings.main()
+    except Exception as e:
+        logger.error(f"Error generating embeddings: {str(e)}")
+    finally:
+        sys.argv = old_args
+    
+    logger.info(f"Embedding generation completed in {time() - start_time:.2f} seconds")
+
+def run_vector_search(query, top_k=5, source_type=None, in_memory_index=False):
+    """Run vector search for a query"""
+    if not has_vector_search:
+        logger.error(f"Vector search modules not available: {import_error}")
+        return []
+    
+    logger.info(f"Running vector search for: {query}")
+    start_time = time()
+    
+    try:
+        if in_memory_index:
+            # Create in-memory index for faster search
+            index = vector_search.create_memory_index()
+            
+            # Create embedding generator
+            embedding_generator = embeddings.EmbeddingGenerator()
+            
+            # Generate query embedding
+            query_embedding = embedding_generator.generate_embedding(query)
+            
+            # Search using in-memory index
+            results = vector_search.search_memory_index(query_embedding, index, top_k=top_k)
+            
+            # Fetch chunk text and enrich results
+            results = vector_search.enrich_search_results(results)
+        else:
+            # Use standard search
+            results = vector_search.debug_search(query, top_k=top_k)
+        
+        logger.info(f"Vector search completed in {time() - start_time:.2f} seconds with {len(results)} results")
+        
+        # Print results
+        print(f"\nVector search results for: {query}")
+        print("=" * 80)
+        
+        for i, result in enumerate(results):
+            print(f"\nResult {i+1} - Similarity: {result.get('similarity', 0):.4f}")
+            print(f"Title: {result.get('title', 'Unknown')}")
+            print(f"Source: {result.get('source_type', 'Unknown')}")
+            print(f"Content ID: {result.get('content_id', 'Unknown')}")
+            print("-" * 40)
+            if 'chunk_text' in result:
+                text = result['chunk_text']
+                print(text[:300] + "..." if len(text) > 300 else text)
+            print("-" * 40)
+            
+            if 'concepts' in result:
+                print("Concepts:")
+                for concept in result['concepts'][:5]:
+                    print(f"- {concept['name']} ({concept['category']}, {concept['importance']})")
+            print()
+        
+        return results
+    
+    except Exception as e:
+        logger.error(f"Error performing vector search: {str(e)}")
+        return []
+
+def run_hybrid_search(query, top_k=5, source_type=None, vector_weight=None, 
+                     keyword_weight=None, adaptive=True):
+    """Run hybrid search for a query"""
+    if not has_vector_search:
+        logger.error(f"Vector search modules not available: {import_error}")
+        return []
+    
+    logger.info(f"Running hybrid search for: {query}")
+    start_time = time()
+    
+    try:
+        # Load weight history if using adaptive weighting
+        weight_history = None
+        if adaptive and (vector_weight is None or keyword_weight is None):
+            weight_history = hybrid_search.load_weights_history()
+            
+            # Get query type
+            query_type = hybrid_search.classify_query_type(query)
+            
+            # Use query-specific weights if available
+            normalized_query = query.lower().strip()
+            if normalized_query in weight_history['queries']:
+                vector_weight = weight_history['queries'][normalized_query]['vector_weight']
+                keyword_weight = weight_history['queries'][normalized_query]['keyword_weight']
+                logger.info(f"Using query-specific weights: vector={vector_weight:.2f}, keyword={keyword_weight:.2f}")
+            else:
+                # Use query type defaults
+                type_key = f"default_{query_type}_vector_weight"
+                if type_key in weight_history:
+                    vector_weight = weight_history[type_key]
+                    keyword_weight = 1.0 - vector_weight
+                    logger.info(f"Using {query_type} query type weights: vector={vector_weight:.2f}, keyword={keyword_weight:.2f}")
+        
+        # Perform hybrid search
+        results = hybrid_search.hybrid_search(
+            query=query,
+            top_k=top_k,
+            source_type=source_type,
+            vector_weight=vector_weight,
+            keyword_weight=keyword_weight
+        )
+        
+        logger.info(f"Hybrid search completed in {time() - start_time:.2f} seconds with {len(results)} results")
+        
+        # Get actual weights used for display
+        if vector_weight is None or keyword_weight is None:
+            vector_weight, keyword_weight = hybrid_search.determine_weights(query)
+        
+        # Print results
+        print(f"\nHybrid search results for: {query}")
+        print(f"Weights: vector={vector_weight:.2f}, keyword={keyword_weight:.2f}")
+        print("=" * 80)
+        
+        for i, result in enumerate(results):
+            print(f"\nResult {i+1} - Combined Score: {result.get('combined_score', 0):.4f}")
+            print(f"Vector Score: {result.get('vector_score', 0):.4f}, Keyword Score: {result.get('keyword_score', 0):.4f}")
+            print(f"Title: {result.get('title', 'Unknown')}")
+            print(f"Source: {result.get('source_type', 'Unknown')}")
+            print(f"Content ID: {result['content_id']}")
+            print("-" * 40)
+            
+            if 'snippet' in result and result['snippet']:
+                print(f"Keyword Match: {result['snippet']}")
+            
+            if 'chunk_text' in result and result['chunk_text']:
+                text = result['chunk_text']
+                print(text[:300] + "..." if len(text) > 300 else text)
+            
+            print("-" * 40)
+            
+            if 'concepts' in result:
+                print("Concepts:")
+                for concept in result['concepts'][:5]:
+                    print(f"- {concept['name']} ({concept['category']}, {concept['importance']})")
+            
+            print()
+        
+        return results
+    
+    except Exception as e:
+        logger.error(f"Error performing hybrid search: {str(e)}")
+        return []
+
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(description='Instagram Knowledge Base')
@@ -4068,6 +5999,27 @@ def main():
         parser.add_argument('--concepts-limit', type=int, help='Maximum number of items to process for concept extraction')
         parser.add_argument('--concepts-source', choices=['research_paper', 'github', 'instagram'], 
                             help='Only extract concepts from this source type')
+    
+    # Add vector search related arguments
+    if has_vector_search:
+        parser.add_argument('--generate-embeddings', action='store_true', help='Generate vector embeddings for content')
+        parser.add_argument('--embeddings-source', choices=['research_paper', 'github', 'instagram'],
+                            help='Generate embeddings only for this source type')
+        parser.add_argument('--embeddings-limit', type=int, help='Maximum number of items to process for embedding generation')
+        parser.add_argument('--embeddings-batch', type=int, default=50, help='Batch size for embedding generation')
+        parser.add_argument('--embeddings-chunk', type=int, default=500, help='Chunk size for embedding generation')
+        parser.add_argument('--embeddings-overlap', type=int, default=100, help='Chunk overlap for embedding generation')
+        parser.add_argument('--embeddings-force', action='store_true', help='Force regeneration of existing embeddings')
+        
+        parser.add_argument('--vector-search', help='Run vector search with the provided query')
+        parser.add_argument('--hybrid-search', help='Run hybrid search with the provided query')
+        parser.add_argument('--search-top-k', type=int, default=5, help='Number of search results to return')
+        parser.add_argument('--search-source', choices=['research_paper', 'github', 'instagram'],
+                            help='Search only in this source type')
+        parser.add_argument('--vector-weight', type=float, help='Weight for vector search (0-1)')
+        parser.add_argument('--keyword-weight', type=float, help='Weight for keyword search (0-1)')
+        parser.add_argument('--adaptive-weights', action='store_true', help='Use adaptive weights based on query type')
+        parser.add_argument('--in-memory-index', action='store_true', help='Use in-memory index for vector search (faster)')
     
     args = parser.parse_args()
     
@@ -4106,6 +6058,53 @@ def main():
             source_type = args.concepts_source if hasattr(args, 'concepts_source') else None
             run_concept_extractor(limit=limit, source_type=source_type)
     
+    # Run vector search modules if available
+    if has_vector_search:
+        if args.generate_embeddings:
+            source_type = args.embeddings_source if hasattr(args, 'embeddings_source') else None
+            limit = args.embeddings_limit if hasattr(args, 'embeddings_limit') else None
+            batch_size = args.embeddings_batch if hasattr(args, 'embeddings_batch') else 50
+            chunk_size = args.embeddings_chunk if hasattr(args, 'embeddings_chunk') else 500
+            chunk_overlap = args.embeddings_overlap if hasattr(args, 'embeddings_overlap') else 100
+            force = args.embeddings_force if hasattr(args, 'embeddings_force') else False
+            
+            run_embedding_generation(
+                source_type=source_type, 
+                limit=limit,
+                batch_size=batch_size,
+                chunk_size=chunk_size,
+                chunk_overlap=chunk_overlap,
+                force=force
+            )
+        
+        if args.vector_search:
+            top_k = args.search_top_k if hasattr(args, 'search_top_k') else 5
+            source_type = args.search_source if hasattr(args, 'search_source') else None
+            in_memory_index = args.in_memory_index if hasattr(args, 'in_memory_index') else False
+            
+            run_vector_search(
+                query=args.vector_search,
+                top_k=top_k,
+                source_type=source_type,
+                in_memory_index=in_memory_index
+            )
+        
+        if args.hybrid_search:
+            top_k = args.search_top_k if hasattr(args, 'search_top_k') else 5
+            source_type = args.search_source if hasattr(args, 'search_source') else None
+            vector_weight = args.vector_weight if hasattr(args, 'vector_weight') else None
+            keyword_weight = args.keyword_weight if hasattr(args, 'keyword_weight') else None
+            adaptive = args.adaptive_weights if hasattr(args, 'adaptive_weights') else True
+            
+            run_hybrid_search(
+                query=args.hybrid_search,
+                top_k=top_k,
+                source_type=source_type,
+                vector_weight=vector_weight,
+                keyword_weight=keyword_weight,
+                adaptive=adaptive
+            )
+    
     if args.all or args.web:
         run_web_interface()
     
@@ -4117,11 +6116,21 @@ def main():
     if has_additional_modules:
         no_args = no_args and not (args.migrate or args.github or args.papers or args.concepts)
     
+    # Check for vector search arguments
+    if has_vector_search:
+        no_args = no_args and not (args.generate_embeddings or args.vector_search or args.hybrid_search)
+    
     if no_args:
         parser.print_help()
 
 if __name__ == "__main__":
     main() 
+
+================================================================================
+File: setup_db.py
+================================================================================
+
+
 
 ================================================================================
 File: summarizer.py
@@ -4698,6 +6707,472 @@ if __name__ == "__main__":
     test_brightdata_proxy() 
 
 ================================================================================
+File: test_vector_search.py
+================================================================================
+
+#!/usr/bin/env python3
+"""
+Test script for vector search functionality.
+
+This script demonstrates and tests the different search capabilities of the system:
+1. Vector search
+2. Keyword search
+3. Hybrid search with different weighting schemes
+"""
+import os
+import sys
+import argparse
+import logging
+import time
+from typing import List, Dict, Any, Optional
+
+# Import vector search modules
+try:
+    import embeddings
+    import vector_search
+    import hybrid_search
+    import config
+except ImportError as e:
+    print(f"Error importing vector search modules: {str(e)}")
+    print("Make sure you have installed all required dependencies from requirements.txt")
+    sys.exit(1)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('logs/vector_search_test.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger('test_vector_search')
+
+# Sample test queries for different content types
+TEST_QUERIES = {
+    "general": [
+        "How do transformer models work?",
+        "What are the recent advances in natural language processing?",
+        "Explain self-attention mechanism in neural networks",
+        "Methods for improving computer vision models",
+        "Best practices for machine learning model deployment"
+    ],
+    "code": [
+        "Python function to implement K-means clustering",
+        "How to optimize TensorFlow models for production",
+        "Example of using BERT for text classification in PyTorch",
+        "Code for implementing a convolutional neural network",
+        "SQL query optimization techniques"
+    ],
+    "factual": [
+        "When was GPT-3 released?",
+        "Who created the transformer architecture?",
+        "What is the BLEU score used for?",
+        "How many parameters are in GPT-4?",
+        "Which institutions are leading AI research?"
+    ]
+}
+
+def test_vector_search(queries: List[str], top_k: int = 5, 
+                      source_type: Optional[str] = None,
+                      in_memory_index: bool = False) -> List[Dict[str, Any]]:
+    """Run vector search tests for the provided queries"""
+    results = []
+    
+    logger.info(f"Testing vector search with {len(queries)} queries")
+    embedding_generator = embeddings.EmbeddingGenerator()
+    
+    # Create in-memory index if requested
+    index = None
+    if in_memory_index:
+        logger.info("Creating in-memory index...")
+        index = vector_search.create_memory_index()
+        logger.info(f"Created in-memory index with {len(index.get('vectors', []))} vectors")
+    
+    # Run tests for each query
+    for i, query in enumerate(queries):
+        logger.info(f"Query {i+1}/{len(queries)}: {query}")
+        
+        start_time = time.time()
+        
+        if in_memory_index and index and len(index.get('vectors', [])) > 0:
+            # Generate query embedding
+            query_embedding = embedding_generator.generate_embedding(query)
+            
+            # Search using in-memory index
+            query_results = vector_search.search_memory_index(
+                query_embedding, index, top_k=top_k
+            )
+            
+            # Fetch chunk text and enrich results
+            query_results = vector_search.enrich_search_results(query_results)
+        else:
+            # Use standard search
+            query_results = vector_search.search_by_text(
+                query_text=query,
+                top_k=top_k,
+                source_type=source_type,
+                embedding_generator=embedding_generator
+            )
+        
+        elapsed = time.time() - start_time
+        
+        # Add to results
+        results.append({
+            'query': query,
+            'results': query_results,
+            'count': len(query_results),
+            'elapsed': elapsed
+        })
+        
+        logger.info(f"Found {len(query_results)} results in {elapsed:.4f} seconds")
+    
+    return results
+
+def test_keyword_search(queries: List[str], top_k: int = 5,
+                       source_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    """Run keyword search tests for the provided queries"""
+    results = []
+    
+    logger.info(f"Testing keyword search with {len(queries)} queries")
+    
+    # Run tests for each query
+    for i, query in enumerate(queries):
+        logger.info(f"Query {i+1}/{len(queries)}: {query}")
+        
+        start_time = time.time()
+        
+        # Perform keyword search
+        query_results = hybrid_search.keyword_search(
+            query=query,
+            top_k=top_k,
+            source_type=source_type
+        )
+        
+        elapsed = time.time() - start_time
+        
+        # Add to results
+        results.append({
+            'query': query,
+            'results': query_results,
+            'count': len(query_results),
+            'elapsed': elapsed
+        })
+        
+        logger.info(f"Found {len(query_results)} results in {elapsed:.4f} seconds")
+    
+    return results
+
+def test_hybrid_search(queries: List[str], top_k: int = 5,
+                      source_type: Optional[str] = None,
+                      vector_weight: Optional[float] = None,
+                      keyword_weight: Optional[float] = None,
+                      adaptive: bool = True) -> List[Dict[str, Any]]:
+    """Run hybrid search tests for the provided queries"""
+    results = []
+    
+    logger.info(f"Testing hybrid search with {len(queries)} queries")
+    embedding_generator = embeddings.EmbeddingGenerator()
+    
+    # Load weight history if using adaptive weighting
+    weight_history = None
+    if adaptive and (vector_weight is None or keyword_weight is None):
+        weight_history = hybrid_search.load_weights_history()
+    
+    # Run tests for each query
+    for i, query in enumerate(queries):
+        logger.info(f"Query {i+1}/{len(queries)}: {query}")
+        
+        # Determine weights if adaptive
+        query_vector_weight = vector_weight
+        query_keyword_weight = keyword_weight
+        
+        if adaptive and (query_vector_weight is None or query_keyword_weight is None):
+            if weight_history:
+                # Get query type
+                query_type = hybrid_search.classify_query_type(query)
+                
+                # Use query-specific weights if available
+                normalized_query = query.lower().strip()
+                if normalized_query in weight_history['queries']:
+                    query_vector_weight = weight_history['queries'][normalized_query]['vector_weight']
+                    query_keyword_weight = weight_history['queries'][normalized_query]['keyword_weight']
+                    logger.info(f"Using query-specific weights: vector={query_vector_weight:.2f}, keyword={query_keyword_weight:.2f}")
+                else:
+                    # Use query type defaults
+                    type_key = f"default_{query_type}_vector_weight"
+                    if type_key in weight_history:
+                        query_vector_weight = weight_history[type_key]
+                        query_keyword_weight = 1.0 - query_vector_weight
+                        logger.info(f"Using {query_type} query type weights: vector={query_vector_weight:.2f}, keyword={query_keyword_weight:.2f}")
+                    else:
+                        # Determine weights based on query
+                        query_vector_weight, query_keyword_weight = hybrid_search.determine_weights(query)
+                        logger.info(f"Using determined weights: vector={query_vector_weight:.2f}, keyword={query_keyword_weight:.2f}")
+        
+        start_time = time.time()
+        
+        # Perform hybrid search
+        query_results = hybrid_search.hybrid_search(
+            query=query,
+            top_k=top_k,
+            source_type=source_type,
+            vector_weight=query_vector_weight,
+            keyword_weight=query_keyword_weight,
+            embedding_generator=embedding_generator
+        )
+        
+        elapsed = time.time() - start_time
+        
+        # Add to results
+        results.append({
+            'query': query,
+            'results': query_results,
+            'count': len(query_results),
+            'elapsed': elapsed,
+            'vector_weight': query_vector_weight,
+            'keyword_weight': query_keyword_weight
+        })
+        
+        logger.info(f"Found {len(query_results)} results in {elapsed:.4f} seconds with weights: vector={query_vector_weight:.2f}, keyword={query_keyword_weight:.2f}")
+    
+    return results
+
+def compare_search_methods(queries: List[str], top_k: int = 5,
+                          source_type: Optional[str] = None) -> Dict[str, Any]:
+    """Compare vector, keyword, and hybrid search for the provided queries"""
+    logger.info(f"Comparing search methods for {len(queries)} queries")
+    
+    # Run each search method
+    vector_results = test_vector_search(queries, top_k, source_type)
+    keyword_results = test_keyword_search(queries, top_k, source_type)
+    hybrid_results = test_hybrid_search(queries, top_k, source_type)
+    
+    # Compile comparison stats
+    comparison = []
+    for i, query in enumerate(queries):
+        vector_count = vector_results[i]['count'] if i < len(vector_results) else 0
+        vector_time = vector_results[i]['elapsed'] if i < len(vector_results) else 0
+        
+        keyword_count = keyword_results[i]['count'] if i < len(keyword_results) else 0
+        keyword_time = keyword_results[i]['elapsed'] if i < len(keyword_results) else 0
+        
+        hybrid_count = hybrid_results[i]['count'] if i < len(hybrid_results) else 0
+        hybrid_time = hybrid_results[i]['elapsed'] if i < len(hybrid_results) else 0
+        hybrid_vector_weight = hybrid_results[i].get('vector_weight', 0) if i < len(hybrid_results) else 0
+        hybrid_keyword_weight = hybrid_results[i].get('keyword_weight', 0) if i < len(hybrid_results) else 0
+        
+        # Add to comparison
+        comparison.append({
+            'query': query,
+            'vector': {
+                'count': vector_count,
+                'time': vector_time
+            },
+            'keyword': {
+                'count': keyword_count,
+                'time': keyword_time
+            },
+            'hybrid': {
+                'count': hybrid_count,
+                'time': hybrid_time,
+                'vector_weight': hybrid_vector_weight,
+                'keyword_weight': hybrid_keyword_weight
+            }
+        })
+    
+    # Calculate averages
+    avg_vector_count = sum(c['vector']['count'] for c in comparison) / len(comparison)
+    avg_vector_time = sum(c['vector']['time'] for c in comparison) / len(comparison)
+    
+    avg_keyword_count = sum(c['keyword']['count'] for c in comparison) / len(comparison)
+    avg_keyword_time = sum(c['keyword']['time'] for c in comparison) / len(comparison)
+    
+    avg_hybrid_count = sum(c['hybrid']['count'] for c in comparison) / len(comparison)
+    avg_hybrid_time = sum(c['hybrid']['time'] for c in comparison) / len(comparison)
+    
+    return {
+        'comparisons': comparison,
+        'summary': {
+            'vector': {
+                'avg_count': avg_vector_count,
+                'avg_time': avg_vector_time
+            },
+            'keyword': {
+                'avg_count': avg_keyword_count,
+                'avg_time': avg_keyword_time
+            },
+            'hybrid': {
+                'avg_count': avg_hybrid_count,
+                'avg_time': avg_hybrid_time
+            }
+        }
+    }
+
+def print_results(results: List[Dict[str, Any]], detailed: bool = False) -> None:
+    """Print search results"""
+    for i, result in enumerate(results):
+        query = result['query']
+        query_results = result['results']
+        elapsed = result['elapsed']
+        
+        print(f"\nQuery {i+1}: {query}")
+        print(f"Found {len(query_results)} results in {elapsed:.4f} seconds")
+        
+        if 'vector_weight' in result and 'keyword_weight' in result:
+            print(f"Weights: vector={result['vector_weight']:.2f}, keyword={result['keyword_weight']:.2f}")
+        
+        if detailed and query_results:
+            print("-" * 80)
+            
+            for j, res in enumerate(query_results):
+                # Print common result details
+                print(f"Result {j+1}")
+                print(f"Content ID: {res.get('content_id', 'Unknown')}")
+                print(f"Title: {res.get('title', 'Unknown')}")
+                print(f"Source: {res.get('source_type', 'Unknown')}")
+                
+                # Print score details
+                if 'similarity' in res:
+                    print(f"Similarity: {res['similarity']:.4f}")
+                if 'score' in res:
+                    print(f"Score: {res['score']:.4f}")
+                if 'combined_score' in res:
+                    print(f"Combined Score: {res['combined_score']:.4f}")
+                    print(f"Vector Score: {res.get('vector_score', 0):.4f}, Keyword Score: {res.get('keyword_score', 0):.4f}")
+                
+                # Print snippet or chunk text
+                if 'snippet' in res and res['snippet']:
+                    print(f"Keyword Match: {res['snippet']}")
+                
+                if 'chunk_text' in res and res['chunk_text']:
+                    text = res['chunk_text']
+                    print(f"Text: {text[:150]}..." if len(text) > 150 else f"Text: {text}")
+                
+                print("-" * 40)
+        
+        print("-" * 80)
+
+def print_comparison(comparison: Dict[str, Any]) -> None:
+    """Print comparison results between search methods"""
+    comparisons = comparison['comparisons']
+    summary = comparison['summary']
+    
+    print("\nSearch Method Comparison")
+    print("=" * 80)
+    
+    # Print summary
+    print("\nSummary:")
+    print(f"Vector Search:  Avg Results: {summary['vector']['avg_count']:.2f}, Avg Time: {summary['vector']['avg_time']:.4f}s")
+    print(f"Keyword Search: Avg Results: {summary['keyword']['avg_count']:.2f}, Avg Time: {summary['keyword']['avg_time']:.4f}s")
+    print(f"Hybrid Search:  Avg Results: {summary['hybrid']['avg_count']:.2f}, Avg Time: {summary['hybrid']['avg_time']:.4f}s")
+    
+    # Print per-query comparison
+    print("\nPer-Query Results:")
+    for i, comp in enumerate(comparisons):
+        query = comp['query']
+        
+        print(f"\nQuery {i+1}: {query}")
+        print(f"Vector:  {comp['vector']['count']} results in {comp['vector']['time']:.4f}s")
+        print(f"Keyword: {comp['keyword']['count']} results in {comp['keyword']['time']:.4f}s")
+        print(f"Hybrid:  {comp['hybrid']['count']} results in {comp['hybrid']['time']:.4f}s (weights: {comp['hybrid']['vector_weight']:.2f}:{comp['hybrid']['keyword_weight']:.2f})")
+    
+    print("=" * 80)
+
+def main():
+    """Main function"""
+    parser = argparse.ArgumentParser(description="Test vector search functionality")
+    parser.add_argument("--vector", action="store_true", help="Test vector search")
+    parser.add_argument("--keyword", action="store_true", help="Test keyword search")
+    parser.add_argument("--hybrid", action="store_true", help="Test hybrid search")
+    parser.add_argument("--compare", action="store_true", help="Compare all search methods")
+    parser.add_argument("--query-type", choices=["general", "code", "factual", "all"], default="all", 
+                        help="Type of test queries to use")
+    parser.add_argument("--custom-query", help="Run tests with a custom query")
+    parser.add_argument("--top-k", type=int, default=5, help="Number of results to return")
+    parser.add_argument("--source-type", choices=["research_paper", "github", "instagram"], 
+                        help="Filter by source type")
+    parser.add_argument("--vector-weight", type=float, help="Weight for vector search (0-1)")
+    parser.add_argument("--keyword-weight", type=float, help="Weight for keyword search (0-1)")
+    parser.add_argument("--adaptive", action="store_true", help="Use adaptive weighting based on query")
+    parser.add_argument("--in-memory", action="store_true", help="Use in-memory indexing for vector search")
+    parser.add_argument("--detailed", action="store_true", help="Show detailed results")
+    
+    args = parser.parse_args()
+    
+    # Create logs directory if it doesn't exist
+    os.makedirs("logs", exist_ok=True)
+    
+    # Determine test queries
+    test_queries = []
+    
+    if args.custom_query:
+        test_queries = [args.custom_query]
+    elif args.query_type == "all":
+        for query_type in TEST_QUERIES:
+            test_queries.extend(TEST_QUERIES[query_type])
+    else:
+        test_queries = TEST_QUERIES.get(args.query_type, [])
+        if not test_queries:
+            logger.error(f"No test queries available for type: {args.query_type}")
+            return
+    
+    # Run tests
+    if args.vector:
+        logger.info("Running vector search tests")
+        results = test_vector_search(
+            queries=test_queries,
+            top_k=args.top_k,
+            source_type=args.source_type,
+            in_memory_index=args.in_memory
+        )
+        
+        print("\nVector Search Results:")
+        print_results(results, detailed=args.detailed)
+    
+    if args.keyword:
+        logger.info("Running keyword search tests")
+        results = test_keyword_search(
+            queries=test_queries,
+            top_k=args.top_k,
+            source_type=args.source_type
+        )
+        
+        print("\nKeyword Search Results:")
+        print_results(results, detailed=args.detailed)
+    
+    if args.hybrid:
+        logger.info("Running hybrid search tests")
+        results = test_hybrid_search(
+            queries=test_queries,
+            top_k=args.top_k,
+            source_type=args.source_type,
+            vector_weight=args.vector_weight,
+            keyword_weight=args.keyword_weight,
+            adaptive=args.adaptive
+        )
+        
+        print("\nHybrid Search Results:")
+        print_results(results, detailed=args.detailed)
+    
+    if args.compare:
+        logger.info("Running comparison of search methods")
+        comparison = compare_search_methods(
+            queries=test_queries,
+            top_k=args.top_k,
+            source_type=args.source_type
+        )
+        
+        print_comparison(comparison)
+    
+    # Show help if no test specified
+    if not (args.vector or args.keyword or args.hybrid or args.compare):
+        parser.print_help()
+
+if __name__ == "__main__":
+    main() 
+
+================================================================================
 File: transcriber.py
 ================================================================================
 
@@ -4829,3 +7304,480 @@ def process_videos():
 
 if __name__ == "__main__":
     process_videos() 
+
+================================================================================
+File: vector_search.py
+================================================================================
+
+"""
+Vector search module for semantic retrieval of content
+
+This module provides functionality to search content using vector similarity,
+enabling semantic search capabilities for the knowledge base.
+"""
+import os
+import logging
+import sqlite3
+import pickle
+import time
+from datetime import datetime
+import numpy as np
+from typing import List, Dict, Any, Optional, Tuple, Union
+
+# Import local modules
+import config
+from embeddings import EmbeddingGenerator
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger('vector_search')
+
+def cosine_similarity(vec1: np.ndarray, vec2: np.ndarray) -> float:
+    """
+    Calculate cosine similarity between two vectors
+    
+    Args:
+        vec1: First vector
+        vec2: Second vector
+        
+    Returns:
+        Cosine similarity (between -1 and 1)
+    """
+    norm1 = np.linalg.norm(vec1)
+    norm2 = np.linalg.norm(vec2)
+    
+    if norm1 == 0 or norm2 == 0:
+        return 0.0
+        
+    return float(np.dot(vec1, vec2) / (norm1 * norm2))
+
+def vector_search(query_embedding: np.ndarray, top_k: int = 5, 
+                 source_type: Optional[str] = None) -> List[Dict[str, Any]]:
+    """
+    Search for similar content using vector embeddings
+    
+    Args:
+        query_embedding: The query embedding vector
+        top_k: Number of results to return
+        source_type: Optional filter by source type
+        
+    Returns:
+        List of search results with similarity scores and metadata
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_PATH)
+        cursor = conn.cursor()
+        
+        # Build query to get all embeddings (potentially filtered by source type)
+        query = """
+            SELECT 
+                ce.content_id, ce.chunk_index, ce.embedding_vector, ce.chunk_text,
+                ac.title, ac.source_type_id
+            FROM content_embeddings ce
+            JOIN ai_content ac ON ce.content_id = ac.id
+        """
+        
+        params = []
+        
+        # Add source type filter if provided
+        if source_type:
+            cursor.execute("SELECT id FROM source_types WHERE name = ?", (source_type,))
+            source_type_id = cursor.fetchone()
+            if source_type_id:
+                query += " WHERE ac.source_type_id = ?"
+                params.append(source_type_id[0])
+            else:
+                logger.warning(f"Source type '{source_type}' not found")
+        
+        # Execute query
+        cursor.execute(query, params)
+        
+        # Calculate similarities and collect results
+        results = []
+        for row in cursor.fetchall():
+            content_id, chunk_index, embedding_binary, chunk_text, title, source_type_id = row
+            
+            # Get source type name
+            cursor.execute("SELECT name FROM source_types WHERE id = ?", (source_type_id,))
+            source_type_result = cursor.fetchone()
+            source_type_name = source_type_result[0] if source_type_result else "unknown"
+            
+            # Skip invalid embeddings
+            if not embedding_binary:
+                continue
+                
+            try:
+                # Deserialize embedding
+                embedding = pickle.loads(embedding_binary)
+                
+                # Calculate similarity
+                similarity = cosine_similarity(query_embedding, embedding)
+                
+                # Add to results
+                results.append({
+                    'content_id': content_id,
+                    'chunk_index': chunk_index,
+                    'similarity': similarity,
+                    'chunk_text': chunk_text,
+                    'title': title,
+                    'source_type': source_type_name
+                })
+            except Exception as e:
+                logger.warning(f"Error processing embedding for content {content_id}, chunk {chunk_index}: {str(e)}")
+                continue
+        
+        # Sort by similarity (descending)
+        results.sort(key=lambda x: x['similarity'], reverse=True)
+        
+        # Return top k results
+        return results[:top_k]
+        
+    except Exception as e:
+        logger.error(f"Error in vector search: {str(e)}")
+        return []
+        
+    finally:
+        if conn:
+            conn.close()
+
+def search_by_text(query_text: str, top_k: int = 5, source_type: Optional[str] = None,
+                  embedding_generator: Optional[EmbeddingGenerator] = None) -> List[Dict[str, Any]]:
+    """
+    Search for content similar to the query text
+    
+    Args:
+        query_text: The query text
+        top_k: Number of results to return
+        source_type: Optional filter by source type
+        embedding_generator: Optional pre-initialized embedding generator
+        
+    Returns:
+        List of search results with similarity scores and metadata
+    """
+    # Create or use provided embedding generator
+    if embedding_generator is None:
+        embedding_generator = EmbeddingGenerator()
+    
+    # Generate embedding for query
+    query_embedding = embedding_generator.generate_embedding(query_text)
+    
+    # Perform vector search
+    results = vector_search(query_embedding, top_k=top_k, source_type=source_type)
+    
+    # Add original query to results
+    for result in results:
+        result['query'] = query_text
+    
+    return results
+
+def enrich_search_results(results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Enrich search results with additional metadata from the database
+    
+    Args:
+        results: List of search results
+        
+    Returns:
+        Enriched search results
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(config.DB_PATH)
+        cursor = conn.cursor()
+        
+        for result in results:
+            content_id = result['content_id']
+            
+            # Get content metadata
+            cursor.execute("""
+                SELECT 
+                    title, description, date_created, url, metadata
+                FROM ai_content 
+                WHERE id = ?
+            """, (content_id,))
+            
+            content_data = cursor.fetchone()
+            if content_data:
+                title, description, date_created, url, metadata_json = content_data
+                
+                # Add to result
+                result['title'] = title or result.get('title', '')
+                result['description'] = description
+                result['date_created'] = date_created
+                result['url'] = url
+                
+                # Parse and add metadata if available
+                if metadata_json:
+                    try:
+                        import json
+                        metadata = json.loads(metadata_json)
+                        result['metadata'] = metadata
+                    except:
+                        # Ignore metadata parsing errors
+                        pass
+            
+            # Get concepts associated with this content
+            try:
+                cursor.execute("""
+                    SELECT c.name, c.category, cc.importance
+                    FROM concepts c
+                    JOIN content_concepts cc ON c.id = cc.concept_id
+                    WHERE cc.content_id = ?
+                    ORDER BY cc.importance DESC
+                """, (content_id,))
+                
+                concepts = [{
+                    'name': row[0],
+                    'category': row[1],
+                    'importance': row[2]
+                } for row in cursor.fetchall()]
+                
+                if concepts:
+                    result['concepts'] = concepts
+            except:
+                # Concepts table might not exist yet
+                pass
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error enriching search results: {str(e)}")
+        return results
+        
+    finally:
+        if conn:
+            conn.close()
+
+def create_memory_index() -> Dict[str, Any]:
+    """
+    Create an in-memory index of all embeddings for faster search
+    
+    Returns:
+        Dictionary containing the in-memory index
+    """
+    logger.info("Creating in-memory embedding index...")
+    conn = None
+    try:
+        start_time = time.time()
+        conn = sqlite3.connect(config.DB_PATH)
+        cursor = conn.cursor()
+        
+        # Get all embeddings
+        cursor.execute("""
+            SELECT 
+                ce.content_id, ce.chunk_index, ce.embedding_vector,
+                ac.title, ac.source_type_id
+            FROM content_embeddings ce
+            JOIN ai_content ac ON ce.content_id = ac.id
+        """)
+        
+        # Process embeddings
+        content_ids = []
+        chunk_indices = []
+        vectors = []
+        metadata = []
+        
+        for row in cursor.fetchall():
+            content_id, chunk_index, embedding_binary, title, source_type_id = row
+            
+            # Skip invalid embeddings
+            if not embedding_binary:
+                continue
+                
+            try:
+                # Deserialize embedding
+                embedding = pickle.loads(embedding_binary)
+                
+                # Add to arrays
+                content_ids.append(content_id)
+                chunk_indices.append(chunk_index)
+                vectors.append(embedding)
+                metadata.append({
+                    'content_id': content_id,
+                    'chunk_index': chunk_index,
+                    'title': title,
+                    'source_type_id': source_type_id
+                })
+            except:
+                # Skip problematic embeddings
+                continue
+        
+        # Convert to numpy array for faster operations
+        if vectors:
+            vectors_array = np.array(vectors)
+        else:
+            vectors_array = np.array([])
+        
+        # Create index
+        index = {
+            'content_ids': content_ids,
+            'chunk_indices': chunk_indices,
+            'vectors': vectors_array,
+            'metadata': metadata,
+            'created_at': datetime.now().isoformat()
+        }
+        
+        elapsed = time.time() - start_time
+        logger.info(f"In-memory index created with {len(vectors)} embeddings in {elapsed:.2f}s")
+        
+        return index
+        
+    except Exception as e:
+        logger.error(f"Error creating in-memory index: {str(e)}")
+        return {
+            'content_ids': [],
+            'chunk_indices': [],
+            'vectors': np.array([]),
+            'metadata': [],
+            'created_at': datetime.now().isoformat(),
+            'error': str(e)
+        }
+        
+    finally:
+        if conn:
+            conn.close()
+
+def search_memory_index(query_embedding: np.ndarray, index: Dict[str, Any], 
+                       top_k: int = 5) -> List[Dict[str, Any]]:
+    """
+    Search the in-memory index for similar embeddings
+    
+    Args:
+        query_embedding: The query embedding
+        index: The in-memory index
+        top_k: Number of results to return
+        
+    Returns:
+        List of search results
+    """
+    try:
+        vectors = index.get('vectors')
+        if len(vectors) == 0:
+            logger.warning("Empty in-memory index")
+            return []
+        
+        # Calculate similarities in a vectorized way
+        similarities = np.dot(vectors, query_embedding) / (
+            np.linalg.norm(vectors, axis=1) * np.linalg.norm(query_embedding)
+        )
+        
+        # Get top k indices
+        if len(similarities) <= top_k:
+            top_indices = np.argsort(similarities)[::-1]
+        else:
+            top_indices = np.argsort(similarities)[::-1][:top_k]
+        
+        # Collect results
+        results = []
+        for idx in top_indices:
+            results.append({
+                'content_id': index['content_ids'][idx],
+                'chunk_index': index['chunk_indices'][idx],
+                'similarity': float(similarities[idx]),
+                'metadata': index['metadata'][idx]
+            })
+        
+        return results
+        
+    except Exception as e:
+        logger.error(f"Error searching in-memory index: {str(e)}")
+        return []
+
+def debug_search(query_text: str, top_k: int = 5):
+    """
+    Debug function to test and display search results
+    
+    Args:
+        query_text: Query text
+        top_k: Number of results to show
+    """
+    # Create embedding generator
+    embedding_generator = EmbeddingGenerator()
+    
+    # Search
+    logger.info(f"Searching for: {query_text}")
+    results = search_by_text(
+        query_text, 
+        top_k=top_k, 
+        embedding_generator=embedding_generator
+    )
+    
+    # Enrich results
+    results = enrich_search_results(results)
+    
+    # Display results
+    print(f"\nSearch results for: {query_text}")
+    print("=" * 80)
+    
+    for i, result in enumerate(results):
+        print(f"\nResult {i+1} - Similarity: {result['similarity']:.4f}")
+        print(f"Title: {result.get('title', 'Unknown')}")
+        print(f"Source: {result.get('source_type', 'Unknown')}")
+        print(f"Content ID: {result['content_id']}, Chunk: {result['chunk_index']}")
+        print("-" * 40)
+        print(result.get('chunk_text', '')[:300] + "..." if len(result.get('chunk_text', '')) > 300 else result.get('chunk_text', ''))
+        print("-" * 40)
+        
+        # Display concepts if available
+        if 'concepts' in result:
+            print("Concepts:")
+            for concept in result['concepts'][:5]:  # Show top 5 concepts
+                print(f"- {concept['name']} ({concept['category']}, {concept['importance']})")
+        
+        print()
+    
+    return results
+
+def main():
+    """Main function for direct script execution"""
+    import argparse
+    
+    parser = argparse.ArgumentParser(description="Vector search for content")
+    parser.add_argument("query", help="Query text")
+    parser.add_argument("--top-k", type=int, default=5, help="Number of results to show")
+    parser.add_argument("--source-type", help="Filter by source type")
+    parser.add_argument("--create-index", action="store_true", help="Create in-memory index before searching")
+    
+    args = parser.parse_args()
+    
+    if args.create_index:
+        # Create and use in-memory index
+        index = create_memory_index()
+        
+        # Create embedding generator
+        embedding_generator = EmbeddingGenerator()
+        
+        # Generate query embedding
+        query_embedding = embedding_generator.generate_embedding(args.query)
+        
+        # Search using in-memory index
+        results = search_memory_index(query_embedding, index, top_k=args.top_k)
+        
+        # Fetch chunk text and enrich results
+        conn = sqlite3.connect(config.DB_PATH)
+        cursor = conn.cursor()
+        
+        for result in results:
+            # Get chunk text
+            cursor.execute(
+                "SELECT chunk_text FROM content_embeddings WHERE content_id = ? AND chunk_index = ?",
+                (result['content_id'], result['chunk_index'])
+            )
+            chunk_text = cursor.fetchone()
+            if chunk_text:
+                result['chunk_text'] = chunk_text[0]
+        
+        conn.close()
+        
+        # Enrich results
+        results = enrich_search_results(results)
+    else:
+        # Use standard search
+        results = debug_search(args.query, top_k=args.top_k)
+    
+if __name__ == "__main__":
+    main() 

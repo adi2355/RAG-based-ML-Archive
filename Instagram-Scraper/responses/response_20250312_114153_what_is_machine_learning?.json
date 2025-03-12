@@ -1,0 +1,62 @@
+{
+  "query": "What is machine learning?",
+  "answer": "The provided context does not contain relevant information to directly answer what machine learning is. However, based on general knowledge, machine learning can be defined as:\n\nMachine learning is a field of artificial intelligence that involves developing algorithms and statistical models that allow computer systems to perform specific tasks effectively without being explicitly programmed for each task. Instead, these systems are trained on large amounts of data to learn patterns and make decisions or predictions.\n\nMachine learning algorithms can be categorized into supervised learning (using labeled data), unsupervised learning (finding patterns in unlabeled data), and reinforcement learning (taking actions in an environment to maximize reward). Some common applications of machine learning include image recognition, natural language processing, recommendation systems, and predictive analytics.\n\nThe goal of machine learning is to build systems that can automatically improve their performance on a specific task over time by ingesting more data and adjusting their algorithms accordingly, without human intervention.",
+  "sources": [
+    {
+      "content_id": 5,
+      "title": "keras",
+      "url": "https://github.com/keras-team/keras",
+      "source_type": "github",
+      "metadata": {
+        "stars": 62681,
+        "language": "Python",
+        "topics": [
+          "data-science",
+          "deep-learning",
+          "jax",
+          "machine-learning",
+          "neural-networks",
+          "python",
+          "pytorch",
+          "tensorflow"
+        ],
+        "forks": 19542,
+        "repo_name": "keras",
+        "full_name": "keras-team/keras"
+      }
+    },
+    {
+      "content_id": 11,
+      "title": "Instagram video from unknown",
+      "url": "https://www.instagram.com/p/DGY-FpLyV9g/",
+      "source_type": "instagram",
+      "metadata": {
+        "username": "unknown",
+        "shortcode": "DGY-FpLyV9g",
+        "duration_seconds": 0,
+        "key_phrases": ""
+      }
+    },
+    {
+      "content_id": 12,
+      "title": "Instagram video from unknown",
+      "url": "https://www.instagram.com/p/DHFB8jFgpFW/",
+      "source_type": "instagram",
+      "metadata": {
+        "username": "unknown",
+        "shortcode": "DHFB8jFgpFW",
+        "duration_seconds": 0,
+        "key_phrases": ""
+      }
+    }
+  ],
+  "metadata": {
+    "time_taken": 4.24617600440979,
+    "llm_provider": "claude",
+    "llm_model": "claude-3-sonnet-20240229",
+    "search_type": "vector",
+    "vector_weight": null,
+    "keyword_weight": null,
+    "timestamp": "2025-03-12T11:41:53.152280"
+  }
+}

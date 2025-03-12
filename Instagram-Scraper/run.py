@@ -5,9 +5,11 @@ import os
 import argparse
 import logging
 from time import time
+import sqlite3
 
 # Import our modules
 from config import DATA_DIR
+import config
 import downloader
 import transcriber
 import indexer
@@ -25,11 +27,15 @@ try:
     import generate_embeddings
     import vector_search
     import hybrid_search
+    import context_builder
+    import llm_integration
     has_additional_modules = True
     has_vector_search = True
+    has_rag = True
 except ImportError as e:
     has_additional_modules = False
     has_vector_search = False
+    has_rag = False
     import_error = str(e)
     missing_module = str(e).split("No module named ")[-1].strip("'")
 
@@ -326,6 +332,114 @@ def run_hybrid_search(query, top_k=5, source_type=None, vector_weight=None,
         logger.error(f"Error performing hybrid search: {str(e)}")
         return []
 
+def run_rag_query(query, search_type='hybrid', source_type=None, top_k=5, 
+                 vector_weight=None, keyword_weight=None, 
+                 max_tokens_context=4000, max_tokens_answer=1000,
+                 temperature=0.5, model=None, stream=False):
+    """Run a RAG query and get a response from the LLM"""
+    if not has_rag:
+        logger.error(f"RAG modules not available: {import_error}")
+        return
+    
+    logger.info(f"Running RAG query: {query}")
+    start_time = time()
+    
+    try:
+        # First check if we have any content in the database with embeddings
+        conn = sqlite3.connect(config.DB_PATH)
+        cursor = conn.cursor()
+        
+        # Check if content_embeddings table exists and has data
+        cursor.execute("""
+            SELECT COUNT(*) FROM sqlite_master 
+            WHERE type='table' AND name='content_embeddings'
+        """)
+        table_exists = cursor.fetchone()[0] > 0
+        
+        if table_exists:
+            cursor.execute("SELECT COUNT(*) FROM content_embeddings")
+            embedding_count = cursor.fetchone()[0]
+            
+            if embedding_count == 0:
+                logger.warning("No embeddings found in the database. Run --generate-embeddings first.")
+                print("No content embeddings found in the database.")
+                print("Please run the following command to generate embeddings first:")
+                print("  python run.py --generate-embeddings")
+                return
+        else:
+            logger.warning("Content embeddings table does not exist. Run --migrate and --generate-embeddings first.")
+            print("Content embeddings table does not exist.")
+            print("Please run the following commands to set up the database and generate embeddings:")
+            print("  1. python run.py --migrate")
+            print("  2. python run.py --generate-embeddings")
+            return
+        
+        conn.close()
+        
+        # Create LLM provider
+        llm_provider = llm_integration.ClaudeProvider(model=model or "claude-3-sonnet-20240229")
+        
+        # Create context builder
+        ctx_builder = context_builder.ContextBuilder(max_tokens=max_tokens_context)
+        
+        # Create RAG assistant
+        rag = llm_integration.RAGAssistant(
+            llm_provider=llm_provider,
+            context_builder=ctx_builder,
+            max_tokens_answer=max_tokens_answer,
+            max_tokens_context=max_tokens_context,
+            temperature=temperature
+        )
+        
+        # Answer query
+        if stream:
+            # Define callback for streaming
+            def print_chunk(chunk):
+                print(chunk, end="", flush=True)
+                
+            response = rag.answer_query_streaming(
+                query=query,
+                callback=print_chunk,
+                search_type=search_type,
+                vector_weight=vector_weight,
+                keyword_weight=keyword_weight,
+                source_type=source_type,
+                top_k=top_k
+            )
+            print("\n")  # Add newline after streaming
+        else:
+            response = rag.answer_query(
+                query=query,
+                search_type=search_type,
+                vector_weight=vector_weight,
+                keyword_weight=keyword_weight,
+                source_type=source_type,
+                top_k=top_k
+            )
+            print(response["answer"])
+            print("")
+            
+        # Print source information
+        print("\nSources:")
+        for idx, source in enumerate(response["sources"]):
+            title = source.get("title", "Untitled")
+            source_type = source.get("source_type", "Unknown")
+            print(f"[{idx+1}] {title} ({source_type})")
+            
+        # Save response
+        timestamp = response["metadata"]["timestamp"].split("T")[0]
+        filepath = rag.save_response(response)
+        print(f"\nResponse saved to: {filepath}")
+        
+        logger.info(f"RAG query completed in {time() - start_time:.2f} seconds")
+        
+    except Exception as e:
+        import traceback
+        error_traceback = traceback.format_exc()
+        logger.error(f"Error running RAG query: {str(e)}\n{error_traceback}")
+        print(f"Error: {str(e)}")
+        print(f"Traceback:\n{error_traceback}")
+
 def main():
     """Main entry point"""
     parser = argparse.ArgumentParser(description='Instagram Knowledge Base')
@@ -369,6 +483,21 @@ def main():
         parser.add_argument('--keyword-weight', type=float, help='Weight for keyword search (0-1)')
         parser.add_argument('--adaptive-weights', action='store_true', help='Use adaptive weights based on query type')
         parser.add_argument('--in-memory-index', action='store_true', help='Use in-memory index for vector search (faster)')
+    
+    # Add RAG arguments
+    if has_rag:
+        parser.add_argument('--rag-query', help='Run RAG query and get response from LLM')
+        parser.add_argument('--rag-search-type', choices=['vector', 'hybrid'], default='hybrid',
+                           help='Search type to use for RAG')
+        parser.add_argument('--rag-max-tokens-context', type=int, default=4000,
+                           help='Maximum tokens for RAG context')
+        parser.add_argument('--rag-max-tokens-answer', type=int, default=1000,
+                           help='Maximum tokens for RAG answer')
+        parser.add_argument('--rag-temperature', type=float, default=0.5,
+                           help='Temperature for LLM generation in RAG')
+        parser.add_argument('--rag-model', help='LLM model to use for RAG')
+        parser.add_argument('--rag-stream', action='store_true',
+                           help='Stream the RAG response')
     
     args = parser.parse_args()
     
@@ -453,6 +582,33 @@ def main():
                 keyword_weight=keyword_weight,
                 adaptive=adaptive
             )
+    
+    # Run RAG modules if available
+    if has_rag and args.rag_query:
+        top_k = args.search_top_k if hasattr(args, 'search_top_k') else 5
+        source_type = args.search_source if hasattr(args, 'search_source') else None
+        vector_weight = args.vector_weight if hasattr(args, 'vector_weight') else None
+        keyword_weight = args.keyword_weight if hasattr(args, 'keyword_weight') else None
+        search_type = args.rag_search_type if hasattr(args, 'rag_search_type') else 'hybrid'
+        max_tokens_context = args.rag_max_tokens_context if hasattr(args, 'rag_max_tokens_context') else 4000
+        max_tokens_answer = args.rag_max_tokens_answer if hasattr(args, 'rag_max_tokens_answer') else 1000
+        temperature = args.rag_temperature if hasattr(args, 'rag_temperature') else 0.5
+        model = args.rag_model if hasattr(args, 'rag_model') else None
+        stream = args.rag_stream if hasattr(args, 'rag_stream') else False
+        
+        run_rag_query(
+            query=args.rag_query,
+            search_type=search_type,
+            source_type=source_type,
+            top_k=top_k,
+            vector_weight=vector_weight,
+            keyword_weight=keyword_weight,
+            max_tokens_context=max_tokens_context,
+            max_tokens_answer=max_tokens_answer,
+            temperature=temperature,
+            model=model,
+            stream=stream
+        )
     
     if args.all or args.web:
         run_web_interface()
