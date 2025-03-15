@@ -1,3 +1,0 @@
-Design patterns for distributed systems recommended by Google.
-
-#SystemDesign #DistributedSystems #Google

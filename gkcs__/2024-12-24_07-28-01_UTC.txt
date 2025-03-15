@@ -1,3 +1,0 @@
-This is how Sports channels show different ads on TV.
-
-For more system design content, check out InterviewReady.

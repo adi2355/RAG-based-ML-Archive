@@ -1,5 +1,0 @@
-Google Maps directs more than 1 billion users from one point to another.
-
-This is how.
-
-#SystemDesign #GoogleMaps #Routing

@@ -1,3 +1,0 @@
-OpenAI multi-agent orchestration repository for developers.
-
-#Swarm #AI

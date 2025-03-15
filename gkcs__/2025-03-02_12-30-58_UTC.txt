@@ -1,5 +1,0 @@
-OpenAI's new model (o3) can beat 99.8% of all competitive programmers.
-
-This is how.
-
-#AI #LLM #CompetitiveProgramming

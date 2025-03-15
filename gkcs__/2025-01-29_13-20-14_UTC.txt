@@ -1,3 +1,0 @@
-DeepSeek's R1 model will be replicated by researchers at Hugging Face.
-
-#AI #DeepSeek #HuggingFace

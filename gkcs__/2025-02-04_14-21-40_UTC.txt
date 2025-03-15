@@ -1,5 +1,0 @@
-A unique distributed ID generator by Twitter.
-
-This is how it works.
-
-#SystemDesign #Twitter #Snowflake

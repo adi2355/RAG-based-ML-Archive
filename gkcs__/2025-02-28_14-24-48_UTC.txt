@@ -1,3 +1,0 @@
-Researchers at Microsoft have found a way to make LLMs smaller.
-
-#AI #Microsoft #LLM

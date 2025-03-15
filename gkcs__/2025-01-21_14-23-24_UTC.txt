@@ -1,5 +1,0 @@
-YouTube saves petabytes of data in CDN transfers everyday.
-
-This is how.
-
-#SystemDesign #YouTube #CDN

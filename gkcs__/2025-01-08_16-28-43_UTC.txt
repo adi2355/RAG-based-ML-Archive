@@ -1,5 +1,0 @@
-Zoom has 300 million users video conferencing every day.
-
-This is how.
-
-#SystemDesign #Zoom #VideoConference

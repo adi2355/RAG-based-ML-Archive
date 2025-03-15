@@ -1,5 +1,0 @@
-Did you know that serverless is actually full of servers?
-
-You probably did...this video is still worth a watch though 😛
-
-#SystemDesign #Serverless #CloudSolutions

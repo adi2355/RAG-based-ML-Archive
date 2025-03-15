@@ -1,5 +1,0 @@
-Google authorizes 1 trillion requests everyday.
-
-This is how.
-
-#SystemDesign #Google #Auth

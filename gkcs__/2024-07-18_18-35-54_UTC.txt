@@ -1,3 +1,0 @@
-Blog: https://interviewready.io/blog/system-design-component-examples
-
-#SystemDesign #CheatSheet
