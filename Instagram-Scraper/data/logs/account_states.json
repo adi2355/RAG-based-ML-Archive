@@ -1,6 +1,111 @@
 {
     "rajistics": {
-        "last_processed": "2025-03-12T01:13:49.581516",
+        "last_processed": "2025-03-15T05:09:06.278873",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "parasmadan.in": {
+        "last_processed": "2025-03-15T01:45:51.216856",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "100xengineers": {
+        "last_processed": "2025-03-15T01:43:36.159984",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "studymlwithme": {
+        "last_processed": "2025-03-15T01:44:25.927296",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "priyal.py": {
+        "last_processed": "2025-03-15T01:44:58.197719",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "daily.ml.papers": {
+        "last_processed": "2025-03-15T01:44:01.664387",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "techie007.dev": {
+        "last_processed": "2025-03-15T01:48:07.699934",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "aws_peter": {
+        "last_processed": "2025-03-15T01:45:38.417079",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "thevarunmayya": {
+        "last_processed": "2025-03-15T01:43:44.251632",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "aevytvdaily": {
+        "last_processed": "2025-03-15T00:40:52.424226",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "hamza_automates": {
+        "last_processed": "2025-03-15T00:43:00.850221",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "mattfarmer": {
+        "last_processed": "2025-03-15T01:44:35.321167",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "3blue1brown": {
+        "last_processed": "2025-03-15T00:45:04.648619",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "goyashy.ai": {
+        "last_processed": "2025-03-15T00:47:01.062609",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "theaiclubhouse": {
+        "last_processed": "2025-03-15T00:48:58.721448",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "mar_antaya": {
+        "last_processed": "2025-03-15T00:50:56.276030",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "openai": {
+        "last_processed": "2025-03-15T01:55:57.749384",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "okaashish": {
+        "last_processed": "2025-03-15T01:43:53.204120",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "edhonour": {
+        "last_processed": "2025-03-15T03:21:01.229506",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "agi.lambda": {
+        "last_processed": "2025-03-15T01:45:18.131376",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "anthropic": {
+        "last_processed": "2025-03-15T01:45:28.056137",
+        "consecutive_failures": 0,
+        "refresh_interval": 24
+    },
+    "neural.ai1": {
+        "last_processed": "2025-03-15T04:06:59.334761",
         "consecutive_failures": 0,
         "refresh_interval": 24
     }

@@ -1,0 +1,5 @@
+Transformers are outperforming CNNs at image classification.
+
+This is why.
+
+#AI #Transformers #CNN

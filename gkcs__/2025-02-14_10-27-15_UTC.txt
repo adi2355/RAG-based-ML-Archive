@@ -1,0 +1,3 @@
+Facebook can now generate test cases comparable with human engineers.
+
+#AI #Meta #Tests

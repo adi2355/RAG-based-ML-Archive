@@ -1,21 +1,247 @@
 {% extends "base.html" %}
 
-{% block title %}Instagram Knowledge Base{% endblock %}
+{% block title %}AI Knowledge Base - Home{% endblock %}
+
+{% block custom_css %}
+    <style>
+        .hero-section {
+            background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
+            color: white;
+            padding: 5rem 0;
+            margin-bottom: 3rem;
+            border-radius: 0.5rem;
+        }
+        .feature-card {
+            padding: 2rem;
+            border-radius: 0.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            height: 100%;
+            transition: transform 0.3s ease;
+        }
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        .stat-card {
+            padding: 1.5rem;
+            border-radius: 0.5rem;
+            background-color: #f8f9fa;
+            text-align: center;
+            height: 100%;
+        }
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        .stat-label {
+            color: #6c757d;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-size: 0.8rem;
+        }
+    </style>
+{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-8 text-center">
-        <h1 class="mb-4">Instagram Knowledge Base</h1>
-        <p class="lead">Search through transcribed Instagram videos from your favorite creators</p>
-        
-        <form action="/search" method="get" class="mt-5">
-            <div class="input-group input-group-lg mb-3">
-                <input type="text" name="query" class="form-control" placeholder="Search for topics, keywords, phrases...">
-                <button class="btn btn-primary" type="submit">
-                    <i class="bi bi-search"></i> Search
-                </button>
+    <div class="hero-section">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-8">
+                    <h1 class="display-4 fw-bold mb-4">AI Knowledge Base</h1>
+                    <p class="lead mb-4">
+                        Explore a comprehensive knowledge base of AI and machine learning concepts, extracted and organized from various sources including Instagram posts, GitHub repositories, and research papers.
+                    </p>
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-start mb-4">
+                        <a href="/search" class="btn btn-light btn-lg px-4 me-md-2">Start Searching</a>
+                        <a href="/chat" class="btn btn-outline-light btn-lg px-4">Chat with AI</a>
+                    </div>
+                </div>
+                <div class="col-md-4 d-flex align-items-center justify-content-center">
+                    <i class="fas fa-brain fa-10x text-white-50"></i>
+                </div>
             </div>
-        </form>
+        </div>
     </div>
-</div>
+
+    <div class="container">
+        <div class="row mb-5">
+            <div class="col-12 text-center mb-4">
+                <h2>Explore the Knowledge Base</h2>
+                <p class="lead">Discover insights from various sources using our powerful tools</p>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="feature-card bg-white">
+                    <div class="feature-icon text-primary">
+                        <i class="fas fa-search"></i>
+                    </div>
+                    <h3>Semantic Search</h3>
+                    <p>Find relevant content using state-of-the-art semantic search capabilities with hybrid vector and keyword search.</p>
+                    <a href="/search" class="btn btn-primary mt-3">Search Now</a>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="feature-card bg-white">
+                    <div class="feature-icon text-success">
+                        <i class="fas fa-project-diagram"></i>
+                    </div>
+                    <h3>Knowledge Graph</h3>
+                    <p>Navigate through connected AI concepts and discover relationships between different topics.</p>
+                    <a href="/concepts" class="btn btn-success mt-3">Explore Concepts</a>
+                </div>
+            </div>
+            <div class="col-md-4 mb-4">
+                <div class="feature-card bg-white">
+                    <div class="feature-icon text-info">
+                        <i class="fas fa-comments"></i>
+                    </div>
+                    <h3>AI Chat</h3>
+                    <p>Get answers to your questions about AI/ML topics with our advanced RAG-powered assistant.</p>
+                    <a href="/chat" class="btn btn-info mt-3 text-white">Start Chatting</a>
+                </div>
+            </div>
+        </div>
+
+        <hr class="my-5">
+
+        <div class="row mb-5">
+            <div class="col-12 text-center mb-4">
+                <h2>Knowledge Base Stats</h2>
+                <p class="lead">Our growing collection of AI/ML knowledge</p>
+            </div>
+            <div class="col-md-3 mb-4">
+                <div class="stat-card">
+                    <div class="stat-number" id="content-count">-</div>
+                    <div class="stat-label">Content Items</div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-4">
+                <div class="stat-card">
+                    <div class="stat-number" id="concept-count">-</div>
+                    <div class="stat-label">AI Concepts</div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-4">
+                <div class="stat-card">
+                    <div class="stat-number" id="source-count">-</div>
+                    <div class="stat-label">Source Types</div>
+                </div>
+            </div>
+            <div class="col-md-3 mb-4">
+                <div class="stat-card">
+                    <div class="stat-number" id="relationship-count">-</div>
+                    <div class="stat-label">Relationships</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mb-5">
+            <div class="col-12 text-center mb-4">
+                <h2>Featured Content</h2>
+            </div>
+            <div class="col-md-12" id="featured-content">
+                <div class="text-center py-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                    <p class="mt-3">Loading featured content...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Load knowledge graph stats
+        fetch('/api/v1/kg/stats')
+            .then(response => response.json())
+            .then(data => {
+                document.getElementById('content-count').textContent = data.content_count || 0;
+                document.getElementById('concept-count').textContent = data.concepts_count || 0;
+                document.getElementById('relationship-count').textContent = data.relationships_count || 0;
+                document.getElementById('source-count').textContent = 3; // Hardcoded for now
+            })
+            .catch(error => {
+                console.error('Error loading stats:', error);
+                // Set fallback values
+                document.getElementById('content-count').textContent = '...';
+                document.getElementById('concept-count').textContent = '...';
+                document.getElementById('relationship-count').textContent = '...';
+                document.getElementById('source-count').textContent = '...';
+            });
+
+        // Load featured content
+        fetch('/api/v1/search', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                query: "machine learning", 
+                top_k: 3,
+                search_type: "hybrid"
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            const featuredContentEl = document.getElementById('featured-content');
+            
+            if (data.results && data.results.length > 0) {
+                let html = '<div class="row">';
+                
+                data.results.forEach(item => {
+                    const sourceClass = getSourceClass(item.source_type);
+                    
+                    html += `
+                        <div class="col-md-4 mb-4">
+                            <div class="card h-100">
+                                <div class="card-body">
+                                    <span class="badge ${sourceClass} float-end">${formatSourceType(item.source_type)}</span>
+                                    <h5 class="card-title">${item.title || 'Untitled'}</h5>
+                                    <p class="card-text">${item.snippet || 'No description available'}</p>
+                                </div>
+                                <div class="card-footer">
+                                    <a href="/content/${item.content_id}" class="btn btn-sm btn-outline-primary">Read More</a>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                featuredContentEl.innerHTML = html;
+            } else {
+                featuredContentEl.innerHTML = '<div class="alert alert-info text-center">No featured content available</div>';
+            }
+        })
+        .catch(error => {
+            console.error('Error loading featured content:', error);
+            document.getElementById('featured-content').innerHTML = 
+                '<div class="alert alert-danger text-center">Error loading featured content</div>';
+        });
+        
+        function getSourceClass(sourceType) {
+            switch (sourceType) {
+                case 'instagram': return 'bg-danger';
+                case 'github': return 'bg-dark';
+                case 'research_paper': return 'bg-primary';
+                default: return 'bg-secondary';
+            }
+        }
+        
+        function formatSourceType(sourceType) {
+            switch (sourceType) {
+                case 'instagram': return 'Instagram';
+                case 'github': return 'GitHub';
+                case 'research_paper': return 'Research Paper';
+                default: return sourceType;
+            }
+        }
+    });
+</script>
 {% endblock %} 

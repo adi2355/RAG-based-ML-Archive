@@ -1,0 +1,5 @@
+Stripe detects payment fraud in 100 milliseconds.
+
+This is how.
+
+#SystemDesign #Stripe

@@ -1,0 +1,3 @@
+IISc Bangalore has built a memristor chip, that could speed up training large language models.
+
+#AI #LLM #Memristor

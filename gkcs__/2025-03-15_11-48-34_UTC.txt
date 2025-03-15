@@ -1,0 +1,5 @@
+This is how Facebook built multimodal LLMs.
+
+It keeps a single vector representation of an object across mediums like audio, video and text.
+
+#AI #LLMs #Multimodal

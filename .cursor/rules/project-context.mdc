@@ -1,0 +1,131 @@
+---
+description:  Project Context File Management
+globs: 
+alwaysApply: true
+---
+
+# Project Context File Management
+
+Rules for maintaining and using a dedicated project context file to store important discussions and context.
+
+<rule>
+name: project_context_file
+description: Manages a context file for storing and retrieving project discussions and knowledge
+filters:
+  - type: intent
+    pattern: "context_management"
+  - type: content
+    pattern: "(?i)\\b(context|discussion|remember|store|save|recall|future|reference)\\b"
+
+actions:
+  - type: suggest
+    message: |
+      # Project Context File Management
+      
+      The project maintains a dedicated context file (`context.md`) to store important discussions, decisions, and knowledge. This file serves as a persistent memory for the project.
+      
+      ## Context File Structure
+      
+      ```
+      # Project Context File
+      
+      ## [DATE] - [TOPIC]
+      
+      [Detailed discussion]
+      
+      ### Key Decisions
+      
+      - Decision 1
+      - Decision 2
+      
+      ### Action Items
+      
+      - [ ] Action 1
+      - [ ] Action 2
+      
+      ## [DATE] - [ANOTHER TOPIC]
+      
+      [Another discussion]
+      ...
+      ```
+      
+      ## Context Commands
+      
+      The following special commands can be used to interact with the context file:
+      
+      1. **Read Context**: 
+         ```
+         /context read [optional topic]
+         ```
+         Reads and displays the context file. If a topic is specified, only that section is displayed.
+      
+      2. **Add Context**:
+         ```
+         /context add [topic]
+         [content to add]
+         ```
+         Appends a new section to the context file.
+      
+      3. **Search Context**:
+         ```
+         /context search [term]
+         ```
+         Searches for specific terms in the context file.
+      
+      4. **Summarize Context**:
+         ```
+         /context summarize
+         ```
+         Provides a summary of all topics in the context file.
+
+  - type: execute
+    command: |
+      # Function to create the context file if it doesn't exist
+      if [ ! -f "context.md" ]; then
+        echo "# Project Context File\n\nCreated on $(date +%Y-%m-%d)\n" > context.md
+        echo "Context file created at context.md"
+      fi
+    conditions:
+      - pattern: "(?i)\\b(create|initialize|setup)\\s+context\\s+file\\b"
+        message: "Creating context file"
+
+  - type: execute
+    command: |
+      # Function to add to the context file
+      DATE=$(date +%Y-%m-%d)
+      TOPIC="${MATCH_ARGS}"
+      echo -e "\n## $DATE - $TOPIC\n" >> context.md
+      echo "Added new topic section to context.md"
+    conditions:
+      - pattern: "(?i)\\b/context\\s+add\\s+(.+)\\b"
+        message: "Adding to context file"
+        match_group: 1
+  
+  - type: execute
+    command: |
+      # Function to search the context file
+      if [ -f "context.md" ]; then
+        SEARCH_TERM="${MATCH_ARGS}"
+        grep -n "$SEARCH_TERM" context.md
+      else
+        echo "Context file not found"
+      fi
+    conditions:
+      - pattern: "(?i)\\b/context\\s+search\\s+(.+)\\b"
+        message: "Searching context file"
+        match_group: 1
+
+examples:
+  - input: "Create a context file for our project"
+    output: "Context file has been created at context.md with an initial header."
+  
+  - input: "/context add Project Requirements\nWe need to implement the following features..."
+    output: "Added new topic section to context.md for Project Requirements."
+  
+  - input: "/context search API"
+    output: "Search results for 'API' in context.md:\n15: ## 2023-05-14 - API Design\n16: We decided to use RESTful principles for all endpoints."
+
+metadata:
+  priority: high
+  version: 1.0
+</rule>

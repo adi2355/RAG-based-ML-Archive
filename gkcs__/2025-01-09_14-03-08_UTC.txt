@@ -1,0 +1,5 @@
+Websites like BookMyShow manage 1000s of concurrent bookings.
+
+This is how.
+
+#SystemDesign #Events

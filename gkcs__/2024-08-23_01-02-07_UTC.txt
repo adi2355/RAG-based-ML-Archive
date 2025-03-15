@@ -1,0 +1,5 @@
+System design scorecard used in big tech companies.
+
+For more info on system design, register at @interviewready_ 
+
+#SystemDesign #Scorecard

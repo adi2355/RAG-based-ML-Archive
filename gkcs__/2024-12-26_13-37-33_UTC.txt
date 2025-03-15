@@ -1,0 +1,3 @@
+WhatsApp hosts 1 Million TCP connections on a single server.
+
+This is how.

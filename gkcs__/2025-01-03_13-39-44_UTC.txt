@@ -1,0 +1,5 @@
+This algorithm from Carnegie Mellon outperforms the popular LRU caching.
+
+This is how.
+
+#SystemDesign #Caching

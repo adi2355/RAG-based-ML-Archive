@@ -1,0 +1,133 @@
+---
+description: Python Code Standards
+globs: *.py
+alwaysApply: false
+---
+
+# Python Code Standards
+
+Enforces consistent coding style for Python files across the project.
+
+<rule>
+name: python_standards
+description: Enforces project-specific Python coding standards
+filters:
+  - type: file_extension
+    pattern: "\\.py$"
+  - type: content
+    pattern: "(?s).*"
+
+actions:
+  - type: suggest
+    message: |
+      # Python Code Standards
+      
+      Follow these coding standards for Python files:
+      
+      ## Imports
+      
+      1. Group imports in this order:
+         - Standard library imports
+         - Third-party library imports
+         - Local application imports
+         
+      2. Use absolute imports for project modules
+      
+      3. Import specific functions/classes instead of entire modules when only using a few items
+      
+      ## Database Handling
+      
+      1. Always use connection management pattern:
+      ```python
+      conn = sqlite3.connect(config.DB_PATH)
+      try:
+          cursor = conn.cursor()
+          # ... operations
+          conn.commit()
+      except Exception as e:
+          logger.error(f"Database error: {str(e)}")
+          conn.rollback()
+          raise
+      finally:
+          conn.close()
+      ```
+      
+      ## Error Handling
+      
+      1. Use specific exception types when possible
+      2. Always log errors with logger.error()
+      3. Include context in error messages
+      
+      ## Logging
+      
+      1. Use appropriate log levels:
+         - DEBUG: Detailed information for debugging
+         - INFO: General operational messages
+         - WARNING: Unexpected behavior that isn't a critical error
+         - ERROR: Errors that prevent function from working properly
+         
+      2. Include relevant context in log messages
+      
+      ## Function Documentation
+      
+      1. Use descriptive docstrings with:
+         - Brief description
+         - Parameter descriptions
+         - Return value description
+         - Exception information
+      
+      ## Type Hints
+      
+      1. Use type hints for function parameters and return values
+      2. Import from typing module as needed (List, Dict, Optional, etc.)
+      
+      ## RAG-Specific Practices
+      
+      1. Never embed sensitive API keys directly in code
+      2. Chunk text properly for embedding with appropriate overlap
+      3. Format context properly for LLM consumption with clear citations
+      4. Include proper error handling for API calls
+
+examples:
+  - input: |
+      def get_content(content_id):
+          conn = sqlite3.connect(DB_PATH)
+          cursor = conn.cursor()
+          cursor.execute("SELECT * FROM content WHERE id = ?", (content_id,))
+          return cursor.fetchone()
+    output: |
+      def get_content(content_id: int) -> Dict[str, Any]:
+          """
+          Retrieve content by ID from the database.
+          
+          Args:
+              content_id: The ID of the content to retrieve
+              
+          Returns:
+              Dict containing content data
+              
+          Raises:
+              DatabaseError: If connection fails or query is invalid
+          """
+          conn = sqlite3.connect(config.DB_PATH)
+          try:
+              cursor = conn.cursor()
+              cursor.execute("SELECT * FROM content WHERE id = ?", (content_id,))
+              row = cursor.fetchone()
+              
+              if not row:
+                  return None
+                  
+              # Convert row to dictionary with field names
+              columns = [column[0] for column in cursor.description]
+              return dict(zip(columns, row))
+          except Exception as e:
+              logger.error(f"Error retrieving content {content_id}: {str(e)}")
+              raise
+          finally:
+              conn.close()
+
+metadata:
+  priority: high
+  version: 1.0
+</rule>

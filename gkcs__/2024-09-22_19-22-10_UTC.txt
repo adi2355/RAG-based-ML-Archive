@@ -1,0 +1,3 @@
+A note on the recent BookMyShow outage.
+
+#BookMyShow #Outage #SoftwareDevelopment

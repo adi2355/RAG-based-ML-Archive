@@ -1,5 +1,5 @@
 annotated-types==0.7.0
-anthropic==0.49.0
+anthropic>=0.49.0
 anyio==4.8.0
 blinker==1.9.0
 certifi==2025.1.31
@@ -70,5 +70,6 @@ transformers==4.49.0
 triton==3.2.0
 typing_extensions==4.12.2
 urllib3==2.3.0
+uuid==1.30
 Werkzeug==3.1.3
-whisper==1.1.10
+openai-whisper

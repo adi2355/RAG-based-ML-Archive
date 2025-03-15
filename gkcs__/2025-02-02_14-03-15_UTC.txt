@@ -1,0 +1,3 @@
+Consistent Hashing has a crazy history.
+
+#SystemDesign #LoadBalancing

@@ -1,0 +1,114 @@
+---
+description: Context Commands
+globs: 
+alwaysApply: true
+---
+
+# Context File Commands
+
+Rules for handling special context file commands in conversations.
+
+<rule>
+name: context_commands
+description: Handles special commands for interacting with the project context file
+filters:
+  - type: content
+    pattern: "(?i)\\b(/context|context command)\\b"
+
+actions:
+  - type: suggest
+    message: |
+      # Context File Commands
+      
+      You can use the following commands to interact with the project context file:
+      
+      1. **/context read [topic]** - Read the context file or a specific topic
+      2. **/context add [topic] [content]** - Add a new section to the context file
+      3. **/context search [term]** - Search for a specific term in the context file
+      4. **/context summarize** - Get a summary of all topics in the context file
+      5. **/context save** - Save the current conversation to the context file
+      6. **/context decisions** - List all key decisions from the context file
+      
+      Example usage:
+      ```
+      /context add API Design
+      We decided to use RESTful principles for our API.
+      
+      Key decisions:
+      - Use plural nouns for endpoints
+      - Implement proper status codes
+      - Add comprehensive documentation
+      ```
+
+  - type: execute
+    command: |
+      # Implementation would have actual Python code to handle these commands
+      # Here we just simulate the response format for each command type
+      
+      if [[ "$TEXT" =~ "/context read" ]]; then
+        echo "Reading from context file..."
+        
+        # Extract optional topic
+        TOPIC=$(echo "$TEXT" | sed -n 's/.*\/context read\s*\(.*\)/\1/p')
+        
+        if [ -n "$TOPIC" ]; then
+          echo "Reading topic: $TOPIC"
+          # Would actually use ContextFileHandler.read_context(topic)
+        else
+          echo "Reading entire context file"
+          # Would actually use ContextFileHandler.read_context()
+        fi
+        
+      elif [[ "$TEXT" =~ "/context add" ]]; then
+        echo "Adding to context file..."
+        
+        # Extract topic and content
+        TOPIC=$(echo "$TEXT" | sed -n 's/.*\/context add\s*\([^\\n]*\).*/\1/p')
+        
+        if [ -n "$TOPIC" ]; then
+          echo "Adding topic: $TOPIC"
+          # Would actually use ContextFileHandler.add_context(topic, content)
+        else
+          echo "Error: No topic specified"
+        fi
+        
+      elif [[ "$TEXT" =~ "/context search" ]]; then
+        echo "Searching context file..."
+        
+        # Extract search term
+        TERM=$(echo "$TEXT" | sed -n 's/.*\/context search\s*\(.*\)/\1/p')
+        
+        if [ -n "$TERM" ]; then
+          echo "Searching for: $TERM"
+          # Would actually use ContextFileHandler.search_context(term)
+        else
+          echo "Error: No search term specified"
+        fi
+        
+      elif [[ "$TEXT" =~ "/context summarize" ]]; then
+        echo "Summarizing context file..."
+        # Would actually use ContextFileHandler.summarize_context()
+        
+      elif [[ "$TEXT" =~ "/context save" ]]; then
+        echo "Saving conversation to context file..."
+        # Would actually use ContextFileHandler.append_discussion(discussion)
+        
+      elif [[ "$TEXT" =~ "/context decisions" ]]; then
+        echo "Listing key decisions from context file..."
+        # Would actually use ContextFileHandler.extract_decisions()
+      fi
+    conditions:
+      - pattern: "(?i)\\b/context\\s+(read|add|search|summarize|save|decisions)\\b"
+        message: "Processing context command"
+
+examples:
+  - input: "/context read API Design"
+    output: "## Topic: API Design\n\nWe discussed RESTful API design principles and decided to adopt them.\n\n### Key Decisions\n\n- Use plural nouns for resource endpoints\n- Implement proper HTTP status codes\n- Add comprehensive documentation"
+  
+  - input: "/context summarize"
+    output: "# Context File Summary\n\n- 2023-05-14: Project Requirements\n- 2023-05-15: API Design\n- 2023-05-16: Database Schema"
+
+metadata:
+  priority: high
+  version: 1.0
+</rule>

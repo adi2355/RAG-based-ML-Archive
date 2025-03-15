@@ -330,8 +330,15 @@ def login_with_session(L, username, password):
         mark_account_cooldown(username)
         return False
 
-def create_instaloader_instance(use_login=True, account=None, proxy=None):
-    """Create an Instaloader instance with appropriate settings for our use case"""
+def create_instaloader_instance(use_login=True, account=None, proxy=None, force_refresh=False):
+    """Create an Instaloader instance with appropriate settings for our use case
+    
+    Args:
+        use_login: Whether to use login credentials (default True)
+        account: The account to use for login (default None)
+        proxy: Proxy URL to use (default None)
+        force_refresh: Whether to skip file existence checks (not used directly in this function)
+    """
     
     # Get a random user agent to appear more human-like
     user_agent = get_random_user_agent()
@@ -416,14 +423,22 @@ def retry_with_backoff(func, max_retries=3, initial_delay=5):
             time.sleep(wait_time)
     return None
 
-def download_from_instagram(accounts=None):
+def download_from_instagram(accounts=None, force_refresh=False, use_auth=True):
     """
     Download content from Instagram accounts with proper rate limiting
     and proxy rotation
+    
+    Args:
+        accounts: List of accounts to download from. Uses config.INSTAGRAM_ACCOUNTS if None.
+        force_refresh: If True, ignore refresh schedule and download from all accounts.
+        use_auth: If True, use authenticated session which helps with API limits.
     """
     os.makedirs(DOWNLOAD_DIR, exist_ok=True)
-    downloaded_count = 0
-    success_count = 0
+    # Make these variables mutable by wrapping in a list
+    download_stats = {
+        'downloaded_count': 0,
+        'success_count': 0
+    }
     
     # Use the accounts from config if none are provided
     if accounts is None:
@@ -449,15 +464,18 @@ def download_from_instagram(accounts=None):
             continue
             
         # Check if we've reached the download limit
-        if downloaded_count >= MAX_DOWNLOADS_PER_RUN:
+        if download_stats['downloaded_count'] >= MAX_DOWNLOADS_PER_RUN:
             logger.info(f"Reached maximum download limit of {MAX_DOWNLOADS_PER_RUN}")
             break
             
-        # Skip accounts that are not due for refresh
-        if not is_account_due_for_refresh(account_name):
+        # Skip accounts that are not due for refresh, unless force_refresh is True
+        if not force_refresh and not is_account_due_for_refresh(account_name):
             logger.info(f"Skipping account {account_name} - not due for refresh")
             continue
             
+        if force_refresh:
+            logger.info(f"Force refresh enabled - processing account {account_name} regardless of refresh schedule")
+        
         # Get a proxy if available
         proxy = get_proxy()
         if not proxy:
@@ -484,9 +502,10 @@ def download_from_instagram(accounts=None):
             logger.info(f"Attempt {attempt_count}/{max_attempts} for account {account_name}")
             
             try:
-                # Create Instaloader instance
-                use_login = (attempt_count > 1)  # Try without login first, then with login if available
-                L = create_instaloader_instance(use_login=use_login, proxy=proxy)
+                # For accounts with many posts, we want to use authenticated sessions
+                # The first attempt will use authentication if requested
+                use_login = use_auth or (attempt_count > 1)
+                L = create_instaloader_instance(use_login=use_login, proxy=proxy, force_refresh=force_refresh)
                 
                 # Try to get profile
                 if profile is None:
@@ -506,49 +525,49 @@ def download_from_instagram(accounts=None):
                         continue  # Skip to next attempt (which will use login)
                     
                     logger.info(f"Successfully retrieved profile for {account_name}")
+                    
+                    # Check if this account has any new posts since last download
+                    if not force_refresh and not has_new_posts(profile, account_name):
+                        logger.info(f"Skipping {account_name} - no new posts since last download")
+                        break  # Skip to next account since there are no new posts
                 
-                # Get the iterator for posts with proper error handling
-                try:
-                    # Add a random delay before fetching posts to appear more human-like
-                    time.sleep(random.uniform(1, 3))
-                    
-                    # Get posts iterator
-                    posts = profile.get_posts()
-                    
-                    # Try to access the first post to validate the iterator
-                    next(posts)
-                    # Reset the iterator
-                    posts = profile.get_posts()
-                    
-                except StopIteration:
-                    logger.warning(f"No posts found for account {account_name}")
-                    posts = []  # Empty list to indicate success but no posts
-                    
-                except Exception as e:
-                    error_msg = str(e).lower()
-                    logger.error(f"Error getting posts for {account_name} (attempt {attempt_count}): {str(e)}")
-                    
-                    # Check for specific errors that indicate we should try alternative approaches
-                    if "401" in error_msg or "unauthorized" in error_msg:
-                        if attempt_count < max_attempts:
-                            logger.info(f"401 Unauthorized error - will retry with different approach")
-                            # Mark previous proxy for cooldown and get a new one for next attempt
-                            if proxy:
-                                mark_proxy_cooldown(proxy)
-                                proxy = get_proxy()
-                            
-                            posts = None  # Reset so we try again
-                            time.sleep(5)  # Wait before retrying
-                            continue
-                    
-                    # If we get here, we couldn't get posts after all retries
-                    failed_accounts.append(account_name)
-                    break
+                # We'll use the profile directly with get_paginated_posts, so we don't need to get the posts iterator here
+                # Just set a non-None value to exit the loop
+                posts = []
                 
-                # Process posts if we have them
-                if posts is not None:
-                    process_posts(L, profile, account_name, posts, 
-                                 downloaded_count, success_count)
+                # Process posts if we have profile
+                if profile is not None:
+                    try:
+                        # Add a shorter delay for accounts where we're just checking for new content
+                        current_delay = DOWNLOAD_DELAY
+                        
+                        if force_refresh:
+                            # Use a shorter delay if we're just checking for new content
+                            if os.path.exists(os.path.join(DOWNLOAD_DIR, account_name)):
+                                # This account has been processed before
+                                # Use a shorter delay to speed up checking for new content
+                                logger.info(f"Using shorter delay for previously processed account {account_name}")
+                                current_delay = max(2, DOWNLOAD_DELAY // 2)  # Reduce delay but keep at least 2 seconds
+                                logger.info(f"Using delay of {current_delay}s instead of {DOWNLOAD_DELAY}s")
+                        
+                        # Process the posts - passing empty posts list since we're using get_paginated_posts internally
+                        success, processed = process_posts(L, profile, account_name, posts,
+                                           download_stats['downloaded_count'], download_stats['success_count'], 
+                                           custom_delay=current_delay, force_refresh=force_refresh)
+                        
+                        # Update the stats only if we actually downloaded new content
+                        if success and processed > 0:
+                            download_stats['downloaded_count'] += processed
+                            download_stats['success_count'] += processed
+                            logger.info(f"Successfully downloaded {processed} new videos from {account_name}")
+                        elif success:
+                            logger.info(f"Successfully checked {account_name}, but no new videos to download")
+                        else:
+                            logger.warning(f"Issue processing posts from {account_name}")
+                    except Exception as e:
+                        logger.error(f"Error in post processing for {account_name}: {str(e)}")
+                        # Don't fail the entire account for post processing errors
+                        # Just mark that we attempted to process it
                     
             except Exception as e:
                 logger.error(f"Error processing account {account_name} (attempt {attempt_count}): {str(e)}")
@@ -563,17 +582,149 @@ def download_from_instagram(accounts=None):
                     failed_accounts.append(account_name)
     
     # Log summary
-    logger.info(f"Download session completed. Downloaded {success_count} videos from {len(accounts_to_process) - len(failed_accounts)}/{len(accounts_to_process)} accounts")
+    logger.info(f"Download session completed. Downloaded {download_stats['success_count']} videos from {len(accounts_to_process) - len(failed_accounts)}/{len(accounts_to_process)} accounts")
     
     if failed_accounts:
         logger.warning(f"Failed to process {len(failed_accounts)} accounts: {', '.join(str(a) for a in failed_accounts)}")
     
-    return success_count, downloaded_count, failed_accounts
+    return download_stats['success_count'], download_stats['downloaded_count'], failed_accounts
 
-def process_posts(L, profile, account_name, posts, downloaded_count, success_count):
-    """Process posts for an account"""
+def get_paginated_posts(profile, account_name, L, fetch_limit=500):
+    """
+    Get posts from a profile with proper pagination to work around Instagram API limitations.
+    
+    Args:
+        profile: Instagram profile object
+        account_name: Name of the account
+        L: Instaloader instance
+        fetch_limit: Maximum number of posts to fetch (default 500)
+        
+    Returns:
+        List of post objects
+    """
+    posts_list = []
+    count = 0
+    
+    logger.info(f"Starting paginated retrieval of posts for {account_name}")
+    
+    try:
+        # Get the initial posts generator
+        posts_iterator = profile.get_posts()
+        
+        # Track pagination variables
+        page_number = 1
+        posts_per_page = 10  # Instagram seems to limit to around 12 posts per request
+        
+        # Loop with pagination
+        while count < fetch_limit:
+            try:
+                # Get a batch of posts
+                batch_count = 0
+                current_page_posts = []
+                
+                logger.info(f"Retrieving page {page_number} of posts for {account_name}")
+                
+                # Try to get a single page of posts
+                for _ in range(posts_per_page):
+                    try:
+                        post = next(posts_iterator)
+                        current_page_posts.append(post)
+                        batch_count += 1
+                    except StopIteration:
+                        logger.info(f"Reached the end of posts at count {count}")
+                        break
+                
+                # If we got any posts in this batch
+                if batch_count > 0:
+                    logger.info(f"Retrieved {batch_count} posts in page {page_number}")
+                    posts_list.extend(current_page_posts)
+                    count += batch_count
+                    
+                    # Add a significant delay between pages to avoid rate limits
+                    if count < fetch_limit:
+                        delay = random.uniform(3, 5)
+                        logger.info(f"Pausing for {delay:.1f} seconds before next page to avoid rate limits")
+                        time.sleep(delay)
+                        page_number += 1
+                else:
+                    logger.info(f"No more posts found after retrieving {count} posts")
+                    break
+                
+            except Exception as e:
+                if 'data' in str(e).lower():
+                    logger.warning(f"Instagram API 'data' error on page {page_number}: {str(e)}")
+                    
+                    # We might have exhausted the current session/quota
+                    # Try a different approach - individual post loading
+                    if count < 50 and page_number < 3:
+                        logger.info("Attempting to retrieve individual posts by shortcode")
+                        
+                        # Try to get recent posts by their shortcodes from existing metadata
+                        metadata_dir = os.path.join(DOWNLOAD_DIR, account_name, 'metadata')
+                        if os.path.exists(metadata_dir):
+                            metadata_files = [f for f in os.listdir(metadata_dir) if f.endswith('.json')]
+                            if metadata_files:
+                                logger.info(f"Found {len(metadata_files)} metadata files, will use these to retrieve posts")
+                                
+                                # Sort metadata files by modification time (newest first)
+                                metadata_files.sort(key=lambda f: os.path.getmtime(os.path.join(metadata_dir, f)), reverse=True)
+                                
+                                for json_file in metadata_files[:100]:  # Try the 100 most recent
+                                    try:
+                                        with open(os.path.join(metadata_dir, json_file), 'r') as f:
+                                            metadata = json.load(f)
+                                        shortcode = metadata.get('shortcode')
+                                        if shortcode:
+                                            try:
+                                                logger.info(f"Retrieving post with shortcode {shortcode}")
+                                                post = instaloader.Post.from_shortcode(L.context, shortcode)
+                                                if post and post not in posts_list:
+                                                    posts_list.append(post)
+                                                    count += 1
+                                                    
+                                                # Add a small delay between requests
+                                                time.sleep(random.uniform(1, 2))
+                                            except Exception as post_error:
+                                                logger.warning(f"Could not load post from shortcode {shortcode}: {str(post_error)}")
+                                    except Exception:
+                                        continue
+                    
+                    # We've tried our alternatives, stop pagination
+                    break
+                    
+                else:
+                    logger.error(f"Error during post pagination: {str(e)}")
+                    # We've hit some other error, stop pagination
+                    break
+    
+    except Exception as e:
+        logger.error(f"Error initializing post retrieval: {str(e)}")
+    
+    logger.info(f"Completed post retrieval with {len(posts_list)} posts")
+    return posts_list
+
+def process_posts(L, profile, account_name, posts, downloaded_count, success_count, custom_delay=DOWNLOAD_DELAY, force_refresh=False):
+    """Process posts for an account
+    
+    Args:
+        L: Instaloader instance
+        profile: Instagram profile
+        account_name: Account name
+        posts: Iterator or list of posts
+        downloaded_count: Current count of downloaded videos (not modified by this function)
+        success_count: Current count of successfully downloaded videos (not modified by this function)
+        custom_delay: Custom delay between downloads (defaults to DOWNLOAD_DELAY)
+        force_refresh: If True, re-download videos even if they already exist (defaults to False)
+        
+    Returns:
+        Tuple (success, new_posts_processed)
+    """
+    # Debug logging for force_refresh
+    logger.info(f"Processing posts for {account_name} with force_refresh={force_refresh}")
+    
     # Process posts
-    posts_processed = 0
+    new_posts_processed = 0
+    already_exists_count = 0
     
     # Create account directory
     account_dir = os.path.join(DOWNLOAD_DIR, account_name)
@@ -584,10 +735,17 @@ def process_posts(L, profile, account_name, posts, downloaded_count, success_cou
     os.makedirs(metadata_dir, exist_ok=True)
     
     try:
-        for post in posts:
+        # Use our new paginated function instead of converting directly
+        posts_list = get_paginated_posts(profile, account_name, L, fetch_limit=MAX_DOWNLOADS_PER_RUN * 10)
+        
+        # Log how many posts we found
+        logger.info(f"Total posts retrieved for processing: {len(posts_list)}")
+        
+        # Now process the posts list
+        for post in posts_list:
             try:
-                # Check if we've reached the maximum downloads limit
-                if downloaded_count >= MAX_DOWNLOADS_PER_RUN:
+                # Check if we've reached the maximum downloads limit (using downloaded_count as reference)
+                if downloaded_count + new_posts_processed >= MAX_DOWNLOADS_PER_RUN:
                     logger.info(f"Reached maximum download limit of {MAX_DOWNLOADS_PER_RUN}")
                     break
                 
@@ -597,21 +755,118 @@ def process_posts(L, profile, account_name, posts, downloaded_count, success_cou
                     continue
                 
                 # Check if this video has already been downloaded
-                video_filename = f"{post.date_utc.strftime('%Y-%m-%d_%H-%M-%S')}_{post.shortcode}.mp4"
+                date_utc_str = post.date_utc.strftime('%Y-%m-%d_%H-%M-%S')
+                video_filename = f"{date_utc_str}_{post.shortcode}.mp4"
                 video_path = os.path.join(account_dir, video_filename)
                 
-                if os.path.exists(video_path):
-                    logger.debug(f"Skipping already downloaded video: {video_filename}")
+                # Use our helper function to check for all possible file locations
+                file_exists, existing_path = check_file_existence(account_dir, date_utc_str, post.shortcode, account_name)
+                
+                # Debug logging for video path
+                logger.info(f"Checking all paths for {post.shortcode}, exists: {file_exists}")
+                if file_exists:
+                    logger.info(f"Found existing file at: {existing_path}")
+                
+                if file_exists and not force_refresh:
+                    logger.debug(f"Skipping already downloaded video: {post.shortcode}")
+                    already_exists_count += 1
                     continue
                 
-                # Download the post
-                logger.info(f"Downloading video post from {account_name}: {post.shortcode}")
+                # If force_refresh and the file exists, log that we're replacing it
+                if file_exists and force_refresh:
+                    logger.info(f"Force refresh: Re-downloading existing video from {account_name}: {post.shortcode}")
+                    # Remove the existing file to ensure clean download
+                    try:
+                        # Remove the existing file if found
+                        if existing_path and os.path.exists(existing_path):
+                            os.remove(existing_path)
+                            logger.info(f"Removed existing file: {existing_path}")
+                            
+                        # Also check for and remove standard format files if they exist
+                        standard_video_path = os.path.join(account_dir, f"{date_utc_str}_{post.shortcode}.mp4")
+                        utc_video_path = os.path.join(account_dir, f"{date_utc_str}_UTC.mp4")
+                        
+                        if os.path.exists(standard_video_path):
+                            os.remove(standard_video_path)
+                            
+                        if os.path.exists(utc_video_path):
+                            os.remove(utc_video_path)
+                            
+                        # Also check for and remove JSON files
+                        for json_path in [
+                            os.path.join(account_dir, f"{date_utc_str}_{post.shortcode}.json"),
+                            os.path.join(account_dir, f"{date_utc_str}_UTC.json"),
+                            f"/home/adi235/MistralOCR/Instagram-Scraper/∕home∕adi235∕MistralOCR∕Instagram-Scraper∕data∕downloads∕{account_name}/{date_utc_str}_UTC.json"
+                        ]:
+                            if os.path.exists(json_path):
+                                os.remove(json_path)
+                                logger.info(f"Removed JSON file: {json_path}")
+                                
+                        logger.info(f"Removed existing files for re-download: {post.shortcode}")
+                    except Exception as rm_error:
+                        logger.warning(f"Could not remove existing files for {post.shortcode}: {str(rm_error)}")
+                else:
+                    logger.info(f"Downloading NEW video post from {account_name}: {post.shortcode}")
                 
                 try:
                     # Download only the video
-                    L.download_post(post, target=account_dir)
-                    downloaded_count += 1
-                    success_count += 1
+                    prev_file_count = len([f for f in os.listdir(account_dir) if f.endswith('.mp4')])
+                    
+                    # When force_refresh is True and the file exists, use our custom download function
+                    if force_refresh and os.path.exists(video_path):
+                        # Use our custom direct download function
+                        success = download_video_directly(post, account_dir, post.shortcode, account_name)
+                        if success:
+                            new_posts_processed += 1
+                            
+                            # Save post metadata to a separate JSON file
+                            metadata = {
+                                'shortcode': post.shortcode,
+                                'date_utc': post.date_utc.strftime('%Y-%m-%d %H:%M:%S'),
+                                'caption': post.caption if post.caption else '',
+                                'likes': post.likes,
+                                'comments': post.comments,
+                                'url': f"https://www.instagram.com/p/{post.shortcode}/",
+                                'account': account_name
+                            }
+                            
+                            metadata_path = os.path.join(metadata_dir, f"{post.shortcode}.json")
+                            with open(metadata_path, 'w', encoding='utf-8') as f:
+                                json.dump(metadata, f, ensure_ascii=False, indent=4)
+                                
+                            logger.info(f"Successfully re-downloaded video for {post.shortcode}")
+                        else:
+                            logger.warning(f"Failed to re-download video for {post.shortcode}")
+                            
+                        # Skip the rest of this iteration
+                        continue
+                    
+                    # For new videos or when force_refresh is False, use the standard Instaloader download
+                    try:
+                        # When force_refresh is True, we need a special approach because Instaloader
+                        # will skip files that already exist even if we delete them
+                        if force_refresh and os.path.exists(os.path.join(account_dir, f"{post.date_utc.strftime('%Y-%m-%d_%H-%M-%S')}_UTC.mp4")):
+                            # This is the format Instaloader uses, and it might still check this path
+                            # instead of our custom path with shortcode
+                            os.remove(os.path.join(account_dir, f"{post.date_utc.strftime('%Y-%m-%d_%H-%M-%S')}_UTC.mp4"))
+                            
+                        # Now perform the download
+                        L.download_post(post, target=account_dir)
+                    except Exception as download_error:
+                        logger.error(f"Error in download operation: {str(download_error)}")
+                        # If the download failed, mark it as not creating a new file
+                        new_file_count = prev_file_count
+                    else:
+                        # Check if the file was created using our helper function
+                        was_created, new_path = check_file_existence(account_dir, post.date_utc.strftime('%Y-%m-%d_%H-%M-%S'), post.shortcode, account_name)
+                        if was_created:
+                            new_posts_processed += 1
+                            logger.info(f"Successfully downloaded NEW video: {post.shortcode} at {new_path}")
+                        else:
+                            logger.warning(f"Download operation didn't create a new file for {post.shortcode}")
+                            # The file might exist under a different name, count it as already existing
+                            already_exists_count += 1
+                            continue
                     
                     # Save post metadata to a separate JSON file
                     metadata = {
@@ -629,8 +884,7 @@ def process_posts(L, profile, account_name, posts, downloaded_count, success_cou
                         json.dump(metadata, f, ensure_ascii=False, indent=4)
                     
                     # Respect Instagram's rate limits by adding a delay between downloads
-                    time.sleep(DOWNLOAD_DELAY)
-                    posts_processed += 1
+                    time.sleep(custom_delay)
                     
                 except Exception as e:
                     logger.error(f"Error downloading post {post.shortcode} from {account_name}: {str(e)}")
@@ -642,8 +896,13 @@ def process_posts(L, profile, account_name, posts, downloaded_count, success_cou
                 # Continue with the next post
                 continue
         
-        logger.info(f"Processed {posts_processed} posts from {account_name}, downloaded {success_count} videos")
-        return True, posts_processed
+        # Add total counts to the logging for this account
+        if new_posts_processed > 0:
+            logger.info(f"Actually processed {len(posts_list)} posts from {account_name}, downloaded {new_posts_processed} NEW videos")
+        else:
+            logger.info(f"No new videos to download from {account_name}. {already_exists_count} videos already exist.")
+            
+        return True, new_posts_processed
         
     except Exception as e:
         logger.error(f"Error processing posts for {account_name}: {str(e)}")
@@ -904,6 +1163,217 @@ def mark_account_cooldown(username, cooldown_minutes=ACCOUNT_COOLDOWN_MINUTES):
             
     except Exception as e:
         logger.error(f"Error marking account {username} for cooldown: {str(e)}")
+
+def get_latest_downloaded_post_date(account_name):
+    """
+    Get the date of the latest downloaded post for an account
+    
+    Args:
+        account_name: Name of the Instagram account
+        
+    Returns:
+        datetime object of the latest post, or None if no posts
+    """
+    account_dir = os.path.join(DOWNLOAD_DIR, account_name)
+    
+    if not os.path.exists(account_dir):
+        return None
+        
+    # Get all mp4 files in the directory
+    video_files = [f for f in os.listdir(account_dir) if f.endswith('.mp4')]
+    
+    if not video_files:
+        return None
+        
+    # Extract dates from filenames (format: YYYY-MM-DD_HH-MM-SS_shortcode.mp4)
+    dates = []
+    for video_file in video_files:
+        try:
+            # Extract the date part
+            date_str = video_file.split('_')[0]
+            if len(date_str) == 10:  # YYYY-MM-DD
+                date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                dates.append(date_obj)
+        except Exception:
+            continue
+            
+    if not dates:
+        return None
+        
+    # Return the most recent date
+    return max(dates)
+    
+def has_new_posts(profile, account_name):
+    """
+    Check if an account has new posts since the last download
+    
+    Args:
+        profile: Profile object
+        account_name: Name of the Instagram account
+        
+    Returns:
+        Boolean indicating if new posts are available
+    """
+    # Get the latest downloaded post date
+    latest_download_date = get_latest_downloaded_post_date(account_name)
+    
+    if latest_download_date is None:
+        # No posts downloaded yet, so definitely has new posts
+        return True
+        
+    try:
+        # Get the most recent post date from the profile
+        recent_posts = profile.get_posts()
+        
+        # Try to get the first post (most recent)
+        try:
+            most_recent_post = next(recent_posts)
+            most_recent_date = most_recent_post.date_utc.replace(tzinfo=None).date()
+            
+            # Compare dates
+            if most_recent_date > latest_download_date.date():
+                logger.info(f"New posts available for {account_name} since {latest_download_date.date()} (latest: {most_recent_date})")
+                return True
+            else:
+                logger.info(f"No new posts for {account_name} since {latest_download_date.date()} (latest: {most_recent_date})")
+                return False
+                
+        except StopIteration:
+            # No posts on profile
+            logger.warning(f"No posts found for {account_name}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error checking for new posts for {account_name}: {str(e)}")
+        # Default to True to trigger a check
+        return True
+
+def download_video_directly(post, account_dir, shortcode, account_name=None):
+    """
+    Download a video directly from a post, bypassing Instaloader's file existence checks.
+    
+    Args:
+        post: Instagram post object
+        account_dir: Directory to save the video
+        shortcode: Post shortcode
+        account_name: Optional account name for special path
+        
+    Returns:
+        bool: True if download was successful, False otherwise
+    """
+    try:
+        # Get the video URL from the post
+        if not hasattr(post, 'video_url'):
+            logger.error(f"Post {shortcode} does not have a video URL")
+            return False
+            
+        video_url = post.video_url
+        if not video_url:
+            logger.error(f"No video URL found for post {shortcode}")
+            return False
+            
+        # Get the date string in the format Instaloader uses
+        date_utc_str = post.date_utc.strftime('%Y-%m-%d_%H-%M-%S')
+        
+        # Get the account name from the account_dir if not provided
+        if account_name is None:
+            account_name = os.path.basename(account_dir)
+        
+        # Create the output filenames - let's try both formats
+        standard_video_path = os.path.join(account_dir, f"{date_utc_str}_{shortcode}.mp4")
+        utc_video_path = os.path.join(account_dir, f"{date_utc_str}_UTC.mp4")
+        
+        # Also handle the special path with Unicode slashes
+        special_path = f"/home/adi235/MistralOCR/Instagram-Scraper/∕home∕adi235∕MistralOCR∕Instagram-Scraper∕data∕downloads∕{account_name}/{date_utc_str}_UTC.mp4"
+        
+        # Let's use the UTC path as Instaloader does
+        video_path = utc_video_path
+        
+        # Download the video using requests
+        import requests
+        from requests.adapters import HTTPAdapter
+        from urllib3.util.retry import Retry
+        
+        # Create a session with retry strategy
+        session = requests.Session()
+        retry = Retry(
+            total=5,
+            backoff_factor=0.5,
+            status_forcelist=[500, 502, 503, 504],
+        )
+        adapter = HTTPAdapter(max_retries=retry)
+        session.mount('http://', adapter)
+        session.mount('https://', adapter)
+        
+        # Download the video
+        logger.info(f"Directly downloading video from URL for {shortcode} to {video_path}")
+        response = session.get(video_url, stream=True, timeout=30)
+        response.raise_for_status()
+        
+        # Save the video
+        with open(video_path, 'wb') as f:
+            for chunk in response.iter_content(chunk_size=8192):
+                f.write(chunk)
+                
+        # Also try saving to the special path
+        try:
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(special_path), exist_ok=True)
+            # Copy the file to the special path
+            import shutil
+            shutil.copy2(video_path, special_path)
+            logger.info(f"Copied video to special path: {special_path}")
+        except Exception as e:
+            logger.warning(f"Couldn't copy to special path: {str(e)}")
+                
+        # Verify the file was created using our helper function
+        was_created, actual_path = check_file_existence(account_dir, date_utc_str, shortcode, account_name)
+        
+        if was_created:
+            logger.info(f"Successfully downloaded video directly to: {actual_path}")
+            return True
+        else:
+            logger.error(f"Failed to download video for {shortcode} - file not found after download")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error downloading video directly for {shortcode}: {str(e)}")
+        return False
+
+def check_file_existence(account_dir, date_utc_str, shortcode, account_name=None):
+    """
+    Check if a file exists in any of the possible formats and locations.
+    This handles the case where files might be in a different path with Unicode slashes.
+    
+    Args:
+        account_dir: The account directory path
+        date_utc_str: The date string in YYYY-MM-DD_HH-MM-SS format
+        shortcode: The Instagram post shortcode
+        account_name: Optional account name for special path
+        
+    Returns:
+        Tuple: (exists, filepath) where filepath is the actual path if found
+    """
+    # Get the account name from the account_dir if not provided
+    if account_name is None:
+        account_name = os.path.basename(account_dir)
+    
+    # Check all possible filename patterns
+    possible_paths = [
+        # Standard paths 
+        os.path.join(account_dir, f"{date_utc_str}_{shortcode}.mp4"),
+        os.path.join(account_dir, f"{date_utc_str}_UTC.mp4"),
+    ]
+    
+    # Add the special path with Unicode slash characters
+    special_path = f"/home/adi235/MistralOCR/Instagram-Scraper/∕home∕adi235∕MistralOCR∕Instagram-Scraper∕data∕downloads∕{account_name}/{date_utc_str}_UTC.mp4"
+    possible_paths.append(special_path)
+    
+    for path in possible_paths:
+        if os.path.exists(path):
+            return True, path
+            
+    return False, None
 
 if __name__ == "__main__":
     download_from_instagram() 

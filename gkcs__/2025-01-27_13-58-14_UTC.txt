@@ -1,0 +1,5 @@
+Facebook deployments take zero downtime.
+
+This is how.
+
+#SystemDesign #Facebook #Deployments

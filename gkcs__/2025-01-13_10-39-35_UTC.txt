@@ -1,0 +1,5 @@
+Canva shows mouse pointers to a 100 million users.
+
+This is how.
+
+#SystemDesign #Canva #WebSockets

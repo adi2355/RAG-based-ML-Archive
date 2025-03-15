@@ -1,0 +1,5 @@
+Researchers at Google report that LLMs can now perform task planning.
+
+This problem is expected to require higher intelligence than simpler probabilistic algorithms.
+
+#Google #LLMs #AI

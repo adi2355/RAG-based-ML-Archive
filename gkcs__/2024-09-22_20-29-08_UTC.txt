@@ -1,0 +1,18 @@
+Roadmap and resources for Software developer Interviews. Save this reel and share with your friends who are preparing for interviews!
+
+Best resources which I’ve used for my preparation are: 
+
+# DSA
+- Leetcode top 150 Interview questions. Try to solve easy and medium ones —> https://leetcode.com/studyplan/top-interview-150/
+- StriversA2Z series @striver_79 —> https://takeuforward.org/strivers-a2z-dsa-course/strivers-a2z-dsa-course-sheet-2/
+
+# System Design
+- Youtube channel: Gaurav Sen —> https://youtube.com/@ gkcs
+( @gkcs__ )
+
+# Theoretical
+- Youtube channel: CodeDecode —> https://youtube.com/@ codedecode
+
+Comment or DM your queries related to interviews! 
+
+#softwaredeveloper #softwareinterview #sdeinterview #techinterview #lld #dsa #systemdesign #systemdesigninterviews #faang #maang
