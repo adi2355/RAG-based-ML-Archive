@@ -16,7 +16,15 @@ const DEFAULT_CONFIG = {
   'static',
   'templates',
   'venv',
-  
+  'alldownloadsraw',
+  'evaluation',
+  'responses',
+  'static',
+  'templates',
+  'visualizations',
+  '.cursor',
+  'logs',
+  'api',
   
     
    

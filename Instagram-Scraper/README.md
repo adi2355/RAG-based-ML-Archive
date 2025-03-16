@@ -9,6 +9,9 @@ Instagram scraper that works around rate limiting. Download, transcribe, and ana
 - **AI-Powered Summarization**: Generate structured summaries with Claude
 - **Batch Processing**: Cost-efficient processing of transcripts using Claude Batches API
 - **Search & Retrieval**: Index and search content with full-text search
+- **Research Paper Collection**: Download papers from ArXiv and custom URLs
+- **Proxy Support**: Download content through proxies to avoid rate limiting
+- **Advanced OCR**: Use Mistral OCR for superior text extraction from PDFs
 
 ## Installation
 
@@ -59,6 +62,77 @@ python run.py --download --refresh-force
 
 # Run Instagram download without authentication 
 python run.py --download --no-auth
+
+# Collect research papers from ArXiv and custom URLs
+python run.py --papers
+```
+
+## Research Paper Collection
+
+The system can download and process research papers from multiple sources:
+
+### ArXiv Collection
+
+Papers are collected from ArXiv based on configured AI/ML topics in `config.py`.
+
+### Proxy Support for Downloads
+
+All paper downloads now support proxies to help with rate limiting and geo-restricted content:
+
+- Configure proxies in `config.py` under `PROXY_SERVERS` or `PROXY_CONFIG`
+- The system will automatically use configured proxies for all HTTP requests
+- Proxy rotation support helps avoid rate limiting
+
+### Mistral OCR for Document Understanding
+
+The system now integrates with Mistral OCR for superior text extraction from PDFs:
+
+- **Enhanced Text Extraction**: Improved extraction quality especially for complex layouts
+- **Document Understanding**: Better handling of tables, charts, and formatted text
+- **Fallback Mechanism**: Automatically falls back to PyPDF2 if OCR fails or API is unavailable
+
+#### Configuration
+
+Edit `config.py` to configure Mistral OCR:
+
+```python
+MISTRAL_OCR_CONFIG = {
+    'enabled': True,  # Enable/disable this feature
+    'model': 'mistral-ocr-latest',
+    'fallback_to_pypdf': True,  # If OCR fails, fall back to PyPDF2
+    'include_images': False,    # Whether to include base64 images in extraction
+    'api_key': os.getenv("MISTRAL_API_KEY", "your_mistral_api_key")
+}
+```
+
+### Custom Paper URL Support
+
+The system now supports downloading papers from arbitrary URLs:
+
+1. **Direct PDF Links**: Provide direct links to PDF files
+2. **Webpage Links**: The system will intelligently extract PDF links from academic pages
+
+#### How It Works
+
+- URLs are configured in the `paper_urls` list in `config.py`
+- For webpage URLs, the system scans for PDF download links
+- Papers are processed, their text extracted, and added to the knowledge base
+- Metadata (title, authors, abstract) is intelligently extracted from the content
+
+#### Configuration
+
+Edit `config.py` to add your paper URLs:
+
+```python
+RESEARCH_PAPER_CONFIG = {
+    # other settings...
+    'enable_custom_paper_urls': True,  # Enable/disable this feature
+    'paper_urls': [
+        "https://arxiv.org/pdf/2307.09288.pdf",  # Direct PDF link
+        "https://proceedings.neurips.cc/paper_files/paper/2023/file/sample-Paper.pdf",
+        "https://www.example.com/research-papers/sample-paper",  # Webpage containing PDF
+    ]
+}
 ```
 
 ## AI Summarization with Claude Batch Processing
@@ -87,6 +161,102 @@ With batch processing enabled (default), Claude API costs are reduced by 50%:
 | Claude 3 Haiku     | $0.125 / MTok | $0.625 / MTok | $0.25 / MTok   | $1.25 / MTok    |
 
 The system uses Claude 3 Haiku by default for optimal cost efficiency.
+
+## Enhanced Paper Collection
+
+The system now includes advanced paper collection capabilities with the following features:
+
+### Duplicate Detection
+
+The system now intelligently detects duplicate papers using multiple methods:
+- **Title Similarity**: Uses Levenshtein distance to detect papers with similar titles
+- **Content Similarity**: Compares document content using Jaccard similarity on text chunks
+- **Automatic Cleanup**: Automatically removes duplicate PDFs to save storage space
+
+### Custom Paper URLs
+
+You can now add papers from any source, not just ArXiv:
+- **Direct PDF Links**: Add direct links to PDF files
+- **Webpage Parsing**: Automatically extracts PDF links from webpages
+- **Flexible Configuration**: Enable/disable this feature in config.py
+
+To add custom paper URLs, edit the `config.py` file:
+
+```python
+# Custom Paper URLs Configuration
+ENABLE_PAPER_URLS = True
+PAPER_URLS = [
+    "https://arxiv.org/pdf/2303.08774.pdf",  # Example: "GPT-4 Technical Report"
+    "https://example.com/research-paper",    # Example: Webpage containing a PDF
+]
+```
+
+### ArXiv Integration
+
+The system includes improved ArXiv integration:
+- **Category-Based Collection**: Collect papers by ArXiv category
+- **Configurable Results**: Set maximum results per category
+- **Flexible Configuration**: Enable/disable ArXiv collection in config.py
+
+Configure ArXiv collection in `config.py`:
+
+```python
+# Paper Collection Configuration
+ENABLE_ARXIV_COLLECTION = True
+ARXIV_CATEGORIES = [
+    "cs.AI",  # Artificial Intelligence
+    "cs.LG",  # Machine Learning
+    "cs.CL",  # Computation and Language
+    "cs.CV",  # Computer Vision
+]
+ARXIV_MAX_RESULTS = 10  # Maximum results per category
+```
+
+## Advanced OCR with Mistral
+
+This project features enhanced PDF text extraction using the Mistral OCR API, providing superior quality text extraction compared to traditional methods:
+
+- **Enhanced Extraction Quality**: Mistral OCR delivers significantly better text extraction from PDFs with complex formatting, tables, and diagrams.
+- **Large PDF Support**: The implementation now handles PDFs of any size by automatically chunking large documents (>10MB) into smaller segments for processing.
+- **Reliable Processing**: Includes built-in retry logic and robust error handling to ensure successful extraction.
+- **Fallback Mechanism**: Automatically falls back to PyPDF2 extraction if Mistral OCR fails or is unavailable.
+
+### Configuring Mistral OCR
+
+To use Mistral OCR, update the `config.py` file with the following settings:
+
+```python
+# Enable Mistral OCR
+USE_MISTRAL_OCR = True
+
+# Add your Mistral API key
+MISTRAL_API_KEY = "your_mistral_api_key"
+
+# Advanced configuration (optional)
+MISTRAL_OCR_CONFIG = {
+    "model": "mistral-large-pdf",  # OCR model to use
+    "fallback_to_pypdf": True,     # Fall back to PyPDF2 if OCR fails
+    "max_retries": 3,              # Maximum number of retry attempts
+    "sleep_time": 2,               # Wait time between retries (seconds)
+}
+```
+
+### Usage with Paper Collection
+
+When collecting papers, Mistral OCR will be used automatically if enabled:
+
+```bash
+python run.py --papers
+```
+
+For specific papers, add URLs to the `PAPER_URLS` list in `config.py`:
+
+```python
+PAPER_URLS = [
+    "https://example.com/paper.pdf",                # Direct PDF link
+    "https://example.com/paper-with-pdf-link.html", # Page containing PDF link
+]
+```
 
 ## Contributing
 

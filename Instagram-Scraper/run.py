@@ -25,7 +25,17 @@ except ImportError:
 
 try:
     import github_collector
+except ImportError as e:
+    github_collector_error = str(e)
+    github_collector = None
+
+try:
     import arxiv_collector
+except ImportError as e:
+    arxiv_collector_error = str(e)
+    arxiv_collector = None
+
+try:
     import concept_extractor
     import chunking
     import embeddings
@@ -34,15 +44,17 @@ try:
     import hybrid_search
     import context_builder
     import llm_integration
-    has_additional_modules = True
     has_vector_search = True
     has_rag = True
 except ImportError as e:
-    has_additional_modules = False
     has_vector_search = False
     has_rag = False
     import_error = str(e)
     missing_module = str(e).split("No module named ")[-1].strip("'")
+    import sys
+    print(f"Current sys.path: {sys.path}")
+    import traceback
+    print(f"Traceback: {traceback.format_exc()}")
 
 # Try to import knowledge graph module
 try:
@@ -122,7 +134,7 @@ def run_web_interface(port=5000, debug=False):
 
 def run_db_migration():
     """Run database migration to support multiple content sources"""
-    if not has_additional_modules:
+    if not has_vector_search:
         logger.error("Database migration module not available")
         return
     
@@ -137,7 +149,7 @@ def run_db_migration():
 
 def run_github_collector(max_repos=None):
     """Run GitHub repository collection"""
-    if not has_additional_modules:
+    if not has_vector_search:
         logger.error("GitHub collector module not available")
         return
     
@@ -148,8 +160,8 @@ def run_github_collector(max_repos=None):
 
 def run_papers_collector(max_papers=None, force_update=False):
     """Run ArXiv research paper collection"""
-    if not has_additional_modules:
-        logger.error("ArXiv collector module not available")
+    if arxiv_collector is None:
+        logger.error(f"ArXiv collector module not available: {arxiv_collector_error}")
         return
     
     logger.info("Starting ArXiv research paper collection")
@@ -159,7 +171,7 @@ def run_papers_collector(max_papers=None, force_update=False):
 
 def run_concept_extractor(limit=None, source_type=None, batch=False, batch_size=5, force=False):
     """Run concept extraction on content"""
-    if not has_additional_modules:
+    if not has_vector_search:
         logger.error("Concept extractor module not available")
         return
     
