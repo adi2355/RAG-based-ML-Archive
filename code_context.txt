@@ -1,0 +1,2952 @@
+# AI KNOWLEDGE BASE CODE CONTEXT
+# Generated context from /home/adi235/MistralOCR
+# Total files processed: 42
+
+
+
+================================================================================
+# COMMAND LINE INTERFACE
+================================================================================
+
+parser.add_argument('--pdf-dir', help='Directory containing PDF files', type=str, default='/home/adi235/MistralOCR/Instagram-Scraper/data/papers/pdf')
+parser.add_argument('--text-dir', help='Directory containing text files', type=str, default='/home/adi235/MistralOCR/Instagram-Scraper/data/papers/text')
+parser.add_argument('--pending-file', help='Path to the pending_papers.json file', type=str, default='/home/adi235/MistralOCR/Instagram-Scraper/data/papers/pending_papers.json')
+parser.add_argument('--dry-run', action='store_true', help='Show what would be done without making changes')
+parser.add_argument('--max-papers', help='Maximum number of papers to add to pending list', type=int, default=None)
+parser.add_argument('--clear-pending', action='store_true', help='Clear the pending list before adding new papers')
+parser.add_argument('--collect', action='store_true', help='Collect papers from ArXiv')
+parser.add_argument('--download-only', action='store_true', help='Only download papers without processing')
+parser.add_argument('--batch-process', action='store_true', help='Process previously downloaded PDFs')
+parser.add_argument('--max', help='Maximum number of papers to process', type=int, default=50)
+parser.add_argument('--url', help='Download and process a single paper from URL', type=str)
+parser.add_argument('--urls-file', help='Path to a text file containing paper URLs (one per line)', type=str)
+parser.add_argument('--download-url', help='Download a single paper from URL without processing', type=str)
+parser.add_argument('--download-urls-file', help='Path to a text file containing paper URLs to download without processing', type=str)
+parser.add_argument('--search-query', help='Custom search query for ArXiv (overrides config)', type=str)
+parser.add_argument('--source-type', help='Filter by source type')
+parser.add_argument('--top-k', help='Top K results to consider', type=int, default=10)
+parser.add_argument('--max-tokens', help='Maximum tokens for context', type=int, default=MAX_TOKENS_DEFAULT)
+parser.add_argument('--vector-weight', help='Weight for vector search (0-1)', type=float)
+parser.add_argument('--keyword-weight', help='Weight for keyword search (0-1)', type=float)
+parser.add_argument('--output', help='Output file for the generated prompt')
+parser.add_argument('--account', help='Specific account to process', type=str)
+parser.add_argument('--all', action='store_true', help='Process all accounts')
+parser.add_argument('--force', action='store_true', help='Force reconversion of already converted files')
+parser.add_argument('--list-accounts', action='store_true', help='List all available accounts')
+parser.add_argument('--verbose', action='store_true', help='Print additional debug information')
+parser.add_argument('--no-copy-videos', action='store_true', help='Skip copying video files to standard location')
+parser.add_argument('--batch-size', help='Batch size for processing', type=int, default=10)
+parser.add_argument('--max-items', help='Maximum number of items to process', type=int)
+parser.add_argument('--source-type', help='Process only this source type (instagram, github, research_paper)')
+parser.add_argument('--model', help='Name of the sentence-transformers model to use', default="multi-qa-mpnet-base-dot-v1")
+parser.add_argument('--content-id', help='Process a specific content ID', type=int)
+parser.add_argument('--force-update', action='store_true', help='Force update of existing embeddings')
+parser.add_argument('--top-k', help='Number of results to show', type=int, default=5)
+parser.add_argument('--source-type', help='Filter by source type')
+parser.add_argument('--vector-weight', help='Weight for vector search (0-1)', type=float)
+parser.add_argument('--keyword-weight', help='Weight for keyword search (0-1)', type=float)
+parser.add_argument('--adaptive', action='store_true', help='Use adaptive weights based on query')
+parser.add_argument('--concepts', action='store_true', help='List top concepts')
+parser.add_argument('--categories', action='store_true', help='List concept categories')
+parser.add_argument('--category', help='Show concepts in category', type=str)
+parser.add_argument('--relationships', action='store_true', help='List relationship types')
+parser.add_argument('--relationship-type', help='Show relationships of this type', type=str)
+parser.add_argument('--search', help='Search concepts by name/description', type=str)
+parser.add_argument('--concept-id', help='Show concept details by ID', type=int)
+parser.add_argument('--concept-name', help='Show concept details by name', type=str)
+parser.add_argument('--related', help='Show concepts related to a concept ID', type=int)
+parser.add_argument('--content', help='Show content with a concept ID', type=int)
+parser.add_argument('--limit', help='Limit results', type=int, default=20)
+parser.add_argument('--content-id', help='Extract concepts from specific content item', type=int)
+parser.add_argument('--batch', action='store_true', help='Process in batch mode')
+parser.add_argument('--batch-size', help='Batch size for processing', type=int, default=10)
+parser.add_argument('--max-items', help='Maximum number of items to process', type=int)
+parser.add_argument('--force', action='store_true', help='Process items even if they already have concepts')
+parser.add_argument('--output-dir', help='Output directory for visualizations', type=str, default="visualizations")
+parser.add_argument('--concept-id', help='Visualize neighborhood of this concept', type=int)
+parser.add_argument('--search', help='Search and visualize concepts', type=str)
+parser.add_argument('--all', action='store_true', help='Generate all standard visualizations')
+parser.add_argument('--min-confidence', help='Minimum confidence for relationships', type=float, default=0.5)
+parser.add_argument('--min-references', help='Minimum reference count for concepts', type=int, default=1)
+parser.add_argument('--interactive', action='store_true', help='Generate interactive visualizations')
+parser.add_argument('--static', action='store_true', help='Generate static visualizations')
+parser.add_argument('--stats', action='store_true', help='Show knowledge graph statistics')
+parser.add_argument('--concept-id', help='Analyze a specific concept', type=int)
+parser.add_argument('--communities', action='store_true', help='Detect and analyze communities')
+parser.add_argument('--centrality', action='store_true', help='Analyze concept centrality')
+parser.add_argument('--output', help='Output file for analysis results (JSON)', type=str)
+parser.add_argument('--source-type', help='Filter by source type')
+parser.add_argument('--top-k', help='Top K results to consider', type=int, default=10)
+parser.add_argument('--max-tokens-answer', help='Maximum tokens for answer', type=int, default=DEFAULT_MAX_TOKENS)
+parser.add_argument('--max-tokens-context', help='Maximum tokens for context', type=int, default=4000)
+parser.add_argument('--vector-weight', help='Weight for vector search (0-1)', type=float)
+parser.add_argument('--keyword-weight', help='Weight for keyword search (0-1)', type=float)
+parser.add_argument('--temperature', help='Temperature for generation', type=float, default=DEFAULT_TEMPERATURE)
+parser.add_argument('--model', help='LLM model to use', default=DEFAULT_MODEL)
+parser.add_argument('--stream', action='store_true', help='Stream the response')
+parser.add_argument('--save', action='store_true', help='Save the response to file')
+parser.add_argument('--output', help='Output file for the response')
+parser.add_argument('--knowledge', action='store_true', help='Build or update the knowledge base')
+parser.add_argument('--embeddings', action='store_true', help='Generate and index embeddings')
+parser.add_argument('--papers', action='store_true', help='Collect and process research papers')
+parser.add_argument('--visualize', action='store_true', help='Run visualization tools')
+parser.add_argument('--all', action='store_true', help='Run all main operations')
+parser.add_argument('--transcribe', action='store_true', help='Run audio extraction and transcription')
+parser.add_argument('--batch-size', help='Batch size for transcription', type=int, default=16)
+parser.add_argument('--extraction-workers', help='Number of parallel audio extraction workers', type=int, default=4)
+parser.add_argument('--auto-batch-size', action='store_true', help='Automatically determine optimal batch size')
+parser.add_argument('--download-papers', action='store_true', help='Download papers without processing')
+parser.add_argument('--process-papers', action='store_true', help='Process previously downloaded papers')
+parser.add_argument('--max-papers', help='Maximum number of papers to process', type=int, default=50)
+parser.add_argument('--paper-url', help='Download a single paper from the provided URL', type=str)
+parser.add_argument('--vector', action='store_true', help='Test vector search')
+parser.add_argument('--keyword', action='store_true', help='Test keyword search')
+parser.add_argument('--hybrid', action='store_true', help='Test hybrid search')
+parser.add_argument('--compare', action='store_true', help='Compare all search methods')
+parser.add_argument('--custom-query', help='Run tests with a custom query')
+parser.add_argument('--top-k', help='Number of results to return', type=int, default=5)
+parser.add_argument('--vector-weight', help='Weight for vector search (0-1)', type=float)
+parser.add_argument('--keyword-weight', help='Weight for keyword search (0-1)', type=float)
+parser.add_argument('--adaptive', action='store_true', help='Use adaptive weighting based on query')
+parser.add_argument('--in-memory', action='store_true', help='Use in-memory indexing for vector search')
+parser.add_argument('--detailed', action='store_true', help='Show detailed results')
+parser.add_argument('--top-k', help='Number of results to show', type=int, default=5)
+parser.add_argument('--source-type', help='Filter by source type')
+parser.add_argument('--create-index', action='store_true', help='Create in-memory index before searching')
+
+
+
+================================================================================
+# API ENDPOINTS
+================================================================================
+
+## File: Instagram-Scraper/api/api.py
+
+GET /health
+Handler: health_check
+Description: API endpoint for health check
+
+POST /search
+Handler: search
+Description: API endpoint for search
+
+POST /answer
+Handler: answer
+Description: API endpoint for generating answers
+
+GET /answer/stream
+Handler: answer_stream
+Description: API endpoint for streaming answer generation
+
+POST /feedback
+Handler: save_feedback
+Description: API endpoint for saving user feedback
+
+## File: Instagram-Scraper/api/api_knowledge.py
+
+GET /concepts/search
+Handler: search_concepts
+Description: API endpoint to search concepts
+
+GET /concepts/<int:concept_id>
+Handler: get_concept
+Description: API endpoint to get concept details
+
+GET /content/<int:content_id>
+Handler: get_content
+Description: API endpoint to get content details
+
+GET /kg/stats
+Handler: knowledge_graph_stats
+Description: API endpoint to get knowledge graph statistics
+
+## File: Instagram-Scraper/api/swagger.py
+
+GET /api/swagger.json
+Handler: swagger_json
+Description: Return Swagger specification
+
+## File: Instagram-Scraper/app.py
+
+GET /
+Handler: index
+Description: Home page with search interface
+
+GET /search
+Handler: search
+Description: Search interface page
+
+GET /chat
+Handler: chat
+Description: Chat interface with RAG assistant
+
+GET /concepts
+Handler: concepts
+Description: Concepts explorer page
+
+GET /content/<int:content_id>
+Handler: content_details
+Description: Content details page
+
+GET /video/<account>/<shortcode>
+Handler: video
+Description: Legacy video detail page - redirects to content page if possible
+
+GET /about
+Handler: about
+Description: About page
+
+GET /stats
+Handler: stats
+Description: Legacy statistics page - redirects to admin dashboard
+
+GET /media/<path:path>
+Handler: media
+Description: Serve media files
+
+## File: Instagram-Scraper/evaluation/dashboard.py
+
+GET /
+Handler: evaluation_dashboard
+Description: Main evaluation dashboard page
+
+GET /retrieval
+Handler: retrieval_dashboard
+Description: Retrieval metrics dashboard page
+
+GET /answer-quality
+Handler: answer_quality_dashboard
+Description: Answer quality dashboard page
+
+GET /datasets
+Handler: datasets_dashboard
+Description: Test datasets dashboard page
+
+GET /api/test-results
+Handler: test_results
+Description: Get test results for dashboard
+
+GET /api/test-result/<int:result_id>
+Handler: test_result_detail
+Description: Get detailed test result
+
+GET /api/metrics/summary
+Handler: metrics_summary
+Description: Get summary metrics for dashboard
+
+GET /api/datasets
+Handler: test_datasets
+Description: Get test datasets
+
+GET /api/dataset/<int:dataset_id>
+Handler: dataset_detail
+Description: Get detailed dataset information
+
+GET /api/answer-evaluations
+Handler: answer_evaluations
+Description: Get answer evaluations
+
+GET /api/answer-evaluation/<int:eval_id>
+Handler: answer_evaluation_detail
+Description: Get detailed answer evaluation
+
+## File: Instagram-Scraper/run.py
+
+GET /
+Handler: redirect_to_evaluation
+
+
+
+================================================================================
+# DATABASE SCHEMA
+================================================================================
+
+## Tables
+
+### concepts
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | INTEGER | PRIMARY KEY |
+| name | TEXT |  |
+| description | TEXT |  |
+| category | TEXT |  |
+| first_seen_date | TEXT |  |
+| last_updated | TEXT |  |
+| reference_count | INTEGER |  |
+
+### concept_relationships
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | INTEGER | PRIMARY KEY |
+| source_concept_id | INTEGER |  |
+| target_concept_id | INTEGER |  |
+| relationship_type | TEXT |  |
+| first_seen_date | TEXT |  |
+| last_updated | TEXT |  |
+| reference_count | INTEGER |  |
+| confidence_score | REAL |  |
+| FOREIGN | KEY(source_concept_id) | REFERENCES concepts(id) |
+| FOREIGN | KEY(target_concept_id) | REFERENCES concepts(id) |
+
+### content_concepts
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | INTEGER | PRIMARY KEY |
+| content_id | INTEGER |  |
+| concept_id | INTEGER |  |
+| importance | TEXT |  |
+| date_extracted | TEXT |  |
+| FOREIGN | KEY(content_id) | REFERENCES ai_content(id) |
+| FOREIGN | KEY(concept_id) | REFERENCES concepts(id) |
+
+### search_query_log
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | INTEGER | PRIMARY KEY |
+| query | TEXT |  |
+| vector_weight | REAL |  |
+| keyword_weight | REAL |  |
+| search_type | TEXT |  |
+| source_type | TEXT |  |
+| result_count | INTEGER |  |
+| top_result_ids | TEXT |  |
+| JSON | array |  |
+| query_features | TEXT |  |
+
+### search_feedback
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | INTEGER | PRIMARY KEY |
+| query_log_id | INTEGER |  |
+| content_id | INTEGER |  |
+| feedback_score | INTEGER |  |
+| 5 | rating |  |
+| feedback_text | TEXT |  |
+| timestamp | TEXT |  |
+| FOREIGN | KEY(query_log_id) | REFERENCES search_query_log(id) |
+
+### weight_patterns
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | INTEGER | PRIMARY KEY |
+| pattern_name | TEXT |  |
+| query_pattern | TEXT |  |
+| JSON | of |  |
+| keyword_weight | REAL |  |
+| positive_feedback_count | INTEGER |  |
+| negative_feedback_count | INTEGER |  |
+| last_updated | TEXT |  |
+| confidence_score | REAL |  |
+
+### videos
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | INTEGER | PRIMARY KEY |
+| shortcode | TEXT |  |
+| account | TEXT |  |
+| filename | TEXT |  |
+| caption | TEXT |  |
+| transcript | TEXT |  |
+| summary | TEXT |  |
+| timestamp | TEXT |  |
+| download_date | TEXT |  |
+| url | TEXT |  |
+| likes | INTEGER |  |
+| comments | INTEGER |  |
+| word_count | INTEGER |  |
+| duration_seconds | INTEGER |  |
+| key_phrases | TEXT |  |
+
+### tags
+
+| Column | Type | Constraints |
+|--------|------|-------------|
+| id | INTEGER | PRIMARY KEY |
+| video_id | INTEGER |  |
+| tag | TEXT |  |
+| FOREIGN | KEY | REFERENCES videos(id) |
+
+## Relationships
+
+| From Table | From Column | To Table | To Column |
+|------------|-------------|----------|----------|
+| concept_relationships | FOREIGN | concepts | id |
+| content_concepts | FOREIGN | ai_content | id |
+| content_concepts | FOREIGN | concepts | id |
+| search_feedback | FOREIGN | search_query_log | id |
+| tags | FOREIGN | videos | id |
+
+
+
+================================================================================
+# MODULE DEPENDENCIES
+================================================================================
+
+## Most Important Modules
+
+| Module | Times Imported |
+|--------|---------------|
+| os | 32 |
+| logging | 30 |
+| sqlite3 | 24 |
+| json | 22 |
+| datetime.datetime | 21 |
+| config | 19 |
+| sys | 15 |
+| time | 14 |
+| typing.List | 10 |
+| typing.Dict | 10 |
+| typing.Optional | 10 |
+| typing.Any | 9 |
+| typing.Tuple | 8 |
+| re | 7 |
+| argparse | 7 |
+| typing.Union | 7 |
+| requests | 6 |
+| flask.jsonify | 5 |
+| flask.request | 4 |
+| config.( | 4 |
+
+## Module Import Graph
+
+- Instagram-Scraper.add_missing_text_files
+  - imports argparse
+
+- Instagram-Scraper.api.__init__
+  - imports .api.api_bp
+  - imports .api.setup_api_routes
+  - imports .api_knowledge.setup_knowledge_routes
+
+- Instagram-Scraper.api.api
+  - imports config
+  - imports flask.Blueprint
+  - imports flask.Response
+  - imports flask.jsonify
+  - imports flask.request
+  - imports flask.stream_with_context
+  - imports sqlite3
+
+- Instagram-Scraper.api.api_knowledge
+  - imports api.api.api_bp
+  - imports config
+  - imports flask.jsonify
+  - imports flask.request
+  - imports sqlite3
+
+- Instagram-Scraper.api.swagger
+  - imports flask.Blueprint
+  - imports flask.jsonify
+  - imports flask_swagger_ui.get_swaggerui_blueprint
+
+- Instagram-Scraper.app
+  - imports config.(
+  - imports flask.Flask
+  - imports flask.g
+  - imports flask.jsonify
+  - imports flask.redirect
+  - imports flask.render_template
+  - imports flask.request
+  - imports flask.send_from_directory
+  - imports flask.url_for
+  - imports functools.lru_cache
+  - imports sqlite3
+
+- Instagram-Scraper.arxiv_collector
+  - imports Levenshtein
+  - imports PyPDF2
+  - imports bs4.BeautifulSoup
+  - imports config
+  - imports feedparser
+  - imports hashlib
+  - imports sqlite3
+  - imports urllib.parse.urljoin
+  - imports urllib.parse.urlparse
+
+- Instagram-Scraper.chunking
+  - imports typing.Any
+  - imports typing.Dict
+  - imports typing.List
+
+- Instagram-Scraper.concept_extractor
+  - imports anthropic
+  - imports config
+  - imports sqlite3
+
+- Instagram-Scraper.context_builder
+  - imports chunking.chunk_text
+  - imports config
+  - imports embeddings.EmbeddingGenerator
+  - imports hybrid_search
+  - imports numpy
+  - imports sqlite3
+  - imports typing.Any
+  - imports typing.Dict
+  - imports typing.List
+  - imports typing.Optional
+  - imports typing.Set
+  - imports typing.Tuple
+  - imports typing.Union
+  - imports vector_search
+
+- Instagram-Scraper.convert_jsonxz
+  - imports argparse
+  - imports config.DATA_DIR
+  - imports config.DOWNLOAD_DIR
+  - imports lzma
+  - imports pathlib.Path
+  - imports subprocess
+
+- Instagram-Scraper.db_migration
+  - imports config
+  - imports sqlite3
+
+- Instagram-Scraper.downloader
+  - imports config.(
+  - imports instaloader
+  - imports random
+  - imports socket
+  - imports sqlite3
+  - imports urllib.parse.parse_qs
+  - imports urllib.parse.urlparse
+  - imports urllib3
+
+- Instagram-Scraper.embeddings
+  - imports chunking.chunk_text
+  - imports chunking.prepare_content_for_embedding
+  - imports config
+  - imports numpy
+  - imports pickle
+  - imports sqlite3
+  - imports typing.Any
+  - imports typing.Dict
+  - imports typing.List
+  - imports typing.Optional
+  - imports typing.Tuple
+  - imports typing.Union
+
+- Instagram-Scraper.evaluation.answer_evaluator
+  - imports config
+  - imports sqlite3
+
+- Instagram-Scraper.evaluation.dashboard
+  - imports config
+  - imports flask.Blueprint
+  - imports flask.jsonify
+  - imports flask.redirect
+  - imports flask.render_template
+  - imports flask.request
+  - imports flask.url_for
+  - imports sqlite3
+
+- Instagram-Scraper.evaluation.retrieval_metrics
+  - imports config
+  - imports numpy
+  - imports sqlite3
+
+- Instagram-Scraper.evaluation.test_queries
+  - imports config
+  - imports random
+  - imports sqlite3
+
+- Instagram-Scraper.evaluation.test_runner
+  - imports config
+  - imports evaluation.answer_evaluator.AnswerEvaluator
+  - imports evaluation.retrieval_metrics.RetrievalEvaluator
+  - imports sqlite3
+
+- Instagram-Scraper.generate_embeddings
+  - imports argparse
+  - imports chunking.chunk_text
+  - imports chunking.prepare_content_for_embedding
+  - imports config
+  - imports embeddings.EmbeddingGenerator
+  - imports sqlite3
+  - imports typing.Any
+  - imports typing.Dict
+  - imports typing.List
+  - imports typing.Optional
+  - imports typing.Tuple
+  - imports typing.Union
+
+- Instagram-Scraper.github_collector
+  - imports base64
+  - imports config
+  - imports sqlite3
+
+- Instagram-Scraper.hybrid_search
+  - imports config
+  - imports embeddings.EmbeddingGenerator
+  - imports sqlite3
+  - imports typing.Any
+  - imports typing.Dict
+  - imports typing.List
+  - imports typing.Optional
+  - imports typing.Tuple
+  - imports typing.Union
+  - imports vector_search.enrich_search_results
+  - imports vector_search.search_by_text
+
+- Instagram-Scraper.indexer
+  - imports config.(
+  - imports glob
+  - imports sqlite3
+  - imports tqdm.tqdm
+
+- Instagram-Scraper.init_db
+  - imports config.DATA_DIR
+  - imports config.DB_PATH
+  - imports sqlite3
+
+- Instagram-Scraper.knowledge_graph
+  - imports config
+  - imports sqlite3
+  - imports typing.Any
+  - imports typing.Dict
+  - imports typing.List
+  - imports typing.Optional
+  - imports typing.Set
+  - imports typing.Tuple
+  - imports typing.Union
+
+- Instagram-Scraper.llm_integration
+  - imports argparse
+  - imports config
+  - imports context_builder.ContextBuilder
+  - imports typing.Any
+  - imports typing.Callable
+  - imports typing.Dict
+  - imports typing.Generator
+  - imports typing.List
+  - imports typing.Optional
+  - imports typing.Union
+
+- Instagram-Scraper.mistral_ocr
+  - imports PyPDF2.PdfReader
+  - imports PyPDF2.PdfWriter
+  - imports base64
+  - imports io.BytesIO
+  - imports typing.Optional
+  - imports typing.Tuple
+
+- Instagram-Scraper.run
+  - imports app.app
+  - imports argparse
+  - imports config
+  - imports config.DATA_DIR
+  - imports downloader
+  - imports indexer
+  - imports sqlite3
+  - imports summarizer
+  - imports transcriber
+
+- Instagram-Scraper.summarizer
+  - imports anthropic.Anthropic
+  - imports anthropic.types.message_create_params.MessageCreateParamsNonStreaming
+  - imports anthropic.types.messages.batch_create_params.Request
+  - imports config.DATA_DIR
+  - imports config.DB_PATH
+  - imports config.TRANSCRIPT_DIR
+  - imports sqlite3
+  - imports uuid
+
+- Instagram-Scraper.test_db
+  - imports sqlite3
+
+- Instagram-Scraper.test_proxy
+  - imports urllib3
+
+- Instagram-Scraper.test_vector_search
+  - imports argparse
+  - imports typing.Any
+  - imports typing.Dict
+  - imports typing.List
+  - imports typing.Optional
+
+- Instagram-Scraper.transcriber
+  - imports argparse
+  - imports concurrent.futures
+  - imports concurrent.futures.ThreadPoolExecutor
+  - imports config.(
+  - imports glob
+  - imports signal
+  - imports subprocess
+  - imports torch
+  - imports tqdm.tqdm
+  - imports typing.Dict
+  - imports typing.List
+  - imports typing.Optional
+  - imports typing.Tuple
+  - imports whisper
+
+- Instagram-Scraper.vector_search
+  - imports config
+  - imports embeddings.EmbeddingGenerator
+  - imports numpy
+  - imports pickle
+  - imports sqlite3
+  - imports typing.Any
+  - imports typing.Dict
+  - imports typing.List
+  - imports typing.Optional
+  - imports typing.Tuple
+  - imports typing.Union
+
+
+
+================================================================================
+# FUNCTION CALLS
+================================================================================
+
+## Most Called Functions
+
+| Function | Times Called |
+|----------|-------------|
+| logger.error | 126 |
+| str | 114 |
+| logger.info | 113 |
+| len | 78 |
+| cursor.execute | 69 |
+| conn.cursor | 68 |
+| conn.close | 60 |
+| sqlite3.connect | 53 |
+| logger.warning | 53 |
+| open | 43 |
+| cursor.fetchone | 40 |
+| cursor.fetchall | 36 |
+| datetime.now | 35 |
+| os.makedirs | 33 |
+| enumerate | 29 |
+| conn.commit | 23 |
+| json.dump | 20 |
+| time.sleep | 20 |
+| json.load | 19 |
+| jsonify | 17 |
+
+
+
+================================================================================
+# CODE COMPLEXITY
+================================================================================
+
+## Most Complex Functions
+
+| Function | Complexity | File | Line |
+|----------|------------|------|------|
+| migrate_database | 34 | None | 18 |
+| process_arxiv_papers | 33 | None | 777 |
+| download_from_instagram | 31 | None | 426 |
+| process_posts | 28 | None | 706 |
+| run_retrieval_tests | 25 | None | 76 |
+| run_retrieval_tests | 25 | None | 76 |
+| parse_sections | 24 | None | 258 |
+| visualize_interactive | 24 | None | 1234 |
+| visualize_interactive | 24 | None | 1234 |
+| process_videos | 24 | None | 241 |
+| download_paper_from_url | 23 | None | 311 |
+| main | 22 | None | 39 |
+| download_papers_only | 21 | None | 1109 |
+| get_paginated_posts | 20 | None | 592 |
+| visualize_with_matplotlib | 20 | None | 1095 |
+| visualize_with_matplotlib | 20 | None | 1095 |
+| main | 19 | None | 358 |
+| batch_process_pdfs | 18 | None | 1251 |
+| get_proxy | 18 | None | 141 |
+| run_hybrid_search | 18 | None | 320 |
+
+### Complexity Guidelines
+
+Cyclomatic complexity is a measure of the number of linearly independent paths through a program's source code:
+
+- 1-5: Low complexity - Simple, well-structured code
+- 6-10: Medium complexity - Moderately complex code, still maintainable
+- 11-20: High complexity - Complex code that may need refactoring
+- 21+: Very high complexity - Code that should be refactored
+
+### Complexity Distribution
+
+- Low complexity (1-5): 0 functions
+- Medium complexity (6-10): 0 functions
+- High complexity (11-20): 51 functions
+- Very high complexity (21+): 13 functions
+
+
+
+================================================================================
+# TEMPLATE HIERARCHY
+================================================================================
+
+answer_quality.html extends evaluation/layout.html
+  Blocks: content, page_title, page_actions, scripts, title
+dashboard.html extends evaluation/layout.html
+  Blocks: content, page_title, page_actions, scripts, title
+datasets.html extends evaluation/layout.html
+  Blocks: content, page_title, page_actions, scripts, title
+retrieval_dashboard.html extends evaluation/layout.html
+  Blocks: content, page_title, page_actions, scripts, title
+
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/add_missing_text_files.py
+================================================================================
+
+# Key imports:
+# import os
+# import json
+# import logging
+# import re
+# from datetime import datetime
+# ... and 1 more imports
+
+# Functions:
+def normalize_filename(filename) [complexity: 3 - low]: "Normalize filename for comparison by removing extension and"
+def main() [complexity: 22 - high]: "Main function to compare PDF and text files and update the pending list."
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/api/api.py
+================================================================================
+
+# Key imports:
+# from flask import Blueprint, request, jsonify, Response, stream_with_context
+import logging
+from datetime import datetime
+import sys
+import os
+import json
+import sqlite3
+
+# Add parent directory to path to allow imports from main package
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('api')
+
+# Create Blueprint
+api_bp = Blueprint('api', __name__, url_prefix='/api/v1')
+
+def setup_api_routes():
+    """Setup additional routes for the API blueprint"""
+    pass
+
+@api_bp.route('/health', methods=['GET'])
+def health_check():
+    """API endpoint for health check"""
+    return jsonify({
+        'status': 'ok',
+        'timestamp': datetime.now().isoformat(),
+        'version': '1.0.0'
+    })
+
+@api_bp.route('/search', methods=['POST'])
+def search():
+    """API endpoint for search"""
+    # Parse request
+    data = request.json
+    
+    if not data or 'query' not in data:
+        return jsonify({'error': 'Query parameter is required'}), 400
+    
+    # Extract parameters
+    query = data['query']
+    search_type = data.get('search_type', 'hybrid')
+    top_k = data.get('top_k', 10)
+    vector_weight = data.get('vector_weight')
+    keyword_weight = data.get('keyword_weight')
+    source_type = data.get('source_type')
+    page = data.get('page', 1)
+    
+    logger.info(f"API search request: {query}")
+    
+    try:
+        # Import locally to avoid circular imports
+        from run import run_hybrid_search, run_vector_search
+
+# Flask routes:
+@api_bp.route('/health', methods=[GET])
+def health_check(): "API endpoint for health check"
+@api_bp.route('/search', methods=[POST])
+def search(): "API endpoint for search"
+@api_bp.route('/answer', methods=[POST])
+def answer(): "API endpoint for generating answers"
+@api_bp.route('/answer/stream', methods=[GET])
+def answer_stream(): "API endpoint for streaming answer generation"
+@api_bp.route('/feedback', methods=[POST])
+def save_feedback(): "API endpoint for saving user feedback"
+
+# Functions:
+def setup_api_routes() [complexity: 1 - low]: "Setup additional routes for the API blueprint"
+def log_search_query(query, search_type, results_count) [complexity: 2 - low]: "Log search query to database"
+def get_last_query_id() [complexity: 2 - low]: "Get the ID of the last logged query"
+def generate() [complexity: 5 - low]
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/api/api_knowledge.py
+================================================================================
+
+# Key imports:
+# from flask import request, jsonify
+import logging
+import sqlite3
+import sys
+import os
+
+# Add parent directory to path to allow imports from main package
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config
+from api.api import api_bp
+
+logger = logging.getLogger('api.knowledge')
+
+def setup_knowledge_routes():
+    """Setup knowledge graph and content routes for the API blueprint"""
+    pass
+
+@api_bp.route('/concepts/search', methods=['GET'])
+def search_concepts():
+    """API endpoint to search concepts"""
+    query = request.args.get('q', '')
+    category = request.args.get('category')
+    limit = int(request.args.get('limit', 10))
+    
+    if not query:
+        return jsonify({"error": "Query parameter 'q' is required"}), 400
+        
+    try:
+        # Import knowledge graph module (using try/except to handle possible import errors)
+        try:
+            from knowledge_graph import KnowledgeGraph
+            graph = KnowledgeGraph()
+            results = graph.search_concepts(query, limit=limit, category=category)
+            
+            return jsonify({
+                "query": query,
+                "results": results
+            })
+        except ImportError:
+            # If knowledge_graph module is not available, fallback to direct DB query
+            conn = sqlite3.connect(config.DB_PATH)
+            cursor = conn.cursor()
+            
+            # Build query
+            base_query = """
+                SELECT id, name, category, importance, confidence
+                FROM concepts
+                WHERE name LIKE ?
+            """
+            
+            params = [f"%{query}%"]
+            
+            if category:
+                base_query += " AND category = ?"
+                params.append(category)
+                
+            base_query += " ORDER BY importance DESC LIMIT ?"
+            params.append(limit)
+            
+            cursor.execute(base_query, params)
+            
+            results = []
+            for row in cursor.fetchall():
+                results.append({
+                    'id': row[0],
+                    'name': row[1],
+                    'category': row[2],
+                    'importance': row[3],
+                    'confidence': row[4]
+                })
+            
+            conn.close()
+            return jsonify({
+                "query": query,
+                "results": results
+            })
+            
+    except Exception as e:
+        logger.error(f"Error in concept search API: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@api_bp.route('/concepts/<int:concept_id>', methods=['GET'])
+def get_concept(concept_id):
+    """API endpoint to get concept details"""
+    try:
+        try:
+            from knowledge_graph import KnowledgeGraph
+            graph = KnowledgeGraph()
+            concept = graph.get_concept(concept_id=concept_id)
+            
+            if not concept:
+                return jsonify({"error": "Concept not found"}), 404
+                
+            return jsonify(concept)
+        except ImportError:
+            # Fallback to direct DB query
+            conn = sqlite3.connect(config.DB_PATH)
+            cursor = conn.cursor()
+            
+            # Get concept details
+            cursor.execute("""
+                SELECT id, name, category, description, importance, confidence
+                FROM concepts
+                WHERE id = ?
+            """, (concept_id,))
+            
+            row = cursor.fetchone()
+            
+            if not row:
+                return jsonify({"error": "Concept not found"}), 404
+                
+            concept = {
+                'id': row[0],
+                'name': row[1],
+                'category': row[2],
+                'description': row[3],
+                'importance': row[4],
+                'confidence': row[5]
+            }
+            
+            # Get related content
+            cursor.execute("""
+                SELECT c.id, c.title, cc.importance
+                FROM ai_content c
+                JOIN content_concepts cc ON c.id = cc.content_id
+                WHERE cc.concept_id = ?
+                ORDER BY cc.importance DESC
+                LIMIT 10
+            """, (concept_id,))
+            
+            related_content = []
+            for content_row in cursor.fetchall():
+                related_content.append({
+                    'id': content_row[0],
+                    'title': content_row[1],
+                    'importance': content_row[2]
+                })
+            
+            # Get related concepts
+            cursor.execute("""
+                SELECT c2.id, c2.name, c2.category, COUNT(*) as frequency
+                FROM concepts c1
+                JOIN content_concepts cc1 ON c1.id = cc1.concept_id
+                JOIN content_concepts cc2 ON cc1.content_id = cc2.content_id
+                JOIN concepts c2 ON cc2.concept_id = c2.id
+                WHERE c1.id = ? AND c2.id != ?
+                GROUP BY c2.id
+                ORDER BY frequency DESC
+                LIMIT 10
+            """, (concept_id, concept_id))
+            
+            related_concepts = []
+            for rel_row in cursor.fetchall():
+                related_concepts.append({
+                    'id': rel_row[0],
+                    'name': rel_row[1],
+                    'category': rel_row[2],
+                    'frequency': rel_row[3]
+                })
+            
+            concept['related_content'] = related_content
+            concept['related_concepts'] = related_concepts
+            
+            conn.close()
+            return jsonify(concept)
+            
+    except Exception as e:
+        logger.error(f"Error in get concept API: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@api_bp.route('/content/<int:content_id>', methods=['GET'])
+def get_content(content_id):
+    """API endpoint to get content details"""
+    try:
+        conn = sqlite3.connect(config.DB_PATH)
+        cursor = conn.cursor()
+        
+        # Get content details
+        cursor.execute("""
+            SELECT c.id, c.title, c.description, c.content, c.url, 
+                   c.date_created, c.date_collected, c.metadata,
+                   s.name as source_type
+            FROM ai_content c
+            JOIN source_types s ON c.source_type_id = s.id
+            WHERE c.id = ?
+        """, (content_id,))
+        
+        row = cursor.fetchone()
+        
+        if not row:
+            return jsonify({"error": "Content not found"}), 404
+            
+        # Get concepts for this content
+        cursor.execute("""
+            SELECT c.id, c.name, c.category, cc.importance
+            FROM concepts c
+            JOIN content_concepts cc ON c.id = cc.concept_id
+            WHERE cc.content_id = ?
+            ORDER BY cc.importance DESC
+        """, (content_id,))
+        
+        concepts = []
+        for concept_row in cursor.fetchall():
+            concepts.append({
+                'id': concept_row[0],
+                'name': concept_row[1],
+                'category': concept_row[2],
+                'importance': concept_row[3]
+            })
+        
+        # Get related content based on common concepts
+        cursor.execute("""
+            SELECT c2.id, c2.title, s.name as source_type, COUNT(*) as common_concepts
+            FROM ai_content c1
+            JOIN content_concepts cc1 ON c1.id = cc1.content_id
+            JOIN content_concepts cc2 ON cc1.concept_id = cc2.concept_id
+            JOIN ai_content c2 ON cc2.content_id = c2.id
+            JOIN source_types s ON c2.source_type_id = s.id
+            WHERE c1.id = ? AND c2.id != ?
+            GROUP BY c2.id
+            ORDER BY common_concepts DESC
+            LIMIT 5
+        """, (content_id, content_id))
+        
+        related_content = []
+        for rel_row in cursor.fetchall():
+            related_content.append({
+                'id': rel_row[0],
+                'title': rel_row[1],
+                'source_type': rel_row[2],
+                'common_concepts': rel_row[3]
+            })
+        
+        content = {
+            'id': row[0],
+            'title': row[1],
+            'description': row[2],
+            'content': row[3],
+            'url': row[4],
+            'date_created': row[5],
+            'date_collected': row[6],
+            'metadata': row[7],
+            'source_type': row[8],
+            'concepts': concepts,
+            'related_content': related_content
+        }
+        
+        conn.close()
+        return jsonify(content)
+        
+    except Exception as e:
+        logger.error(f"Error in get content API: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@api_bp.route('/kg/stats', methods=['GET'])
+def knowledge_graph_stats():
+    """API endpoint to get knowledge graph statistics"""
+    try:
+        try:
+            from knowledge_graph import KnowledgeGraph
+
+# Flask routes:
+@api_bp.route('/concepts/search', methods=[GET])
+def search_concepts(): "API endpoint to search concepts"
+@api_bp.route('/concepts/<int:concept_id>', methods=[GET])
+def get_concept(): "API endpoint to get concept details"
+@api_bp.route('/content/<int:content_id>', methods=[GET])
+def get_content(): "API endpoint to get content details"
+@api_bp.route('/kg/stats', methods=[GET])
+def knowledge_graph_stats(): "API endpoint to get knowledge graph statistics"
+
+# Functions:
+def setup_knowledge_routes() [complexity: 1 - low]: "Setup knowledge graph and content routes for the API blueprint"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/api/swagger.py
+================================================================================
+
+# Key imports:
+# from flask import Blueprint, jsonify
+from flask_swagger_ui import get_swaggerui_blueprint
+
+# Flask routes:
+@swagger_json_bp.route('/api/swagger.json', methods=[GET])
+def swagger_json(): "Return Swagger specification"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/app.py
+================================================================================
+
+# Key imports:
+# import os
+# import re
+# import sqlite3
+# from functools import lru_cache
+from flask import Flask, render_template, request, jsonify, g, send_from_directory, redirect, url_for
+
+from config import (
+    DB_PATH,
+    WEB_PORT,
+    DEBUG_MODE,
+    DOWNLOAD_DIR,
+    DATA_DIR
+)
+
+app = Flask(__name__)
+
+# Import and register API blueprints
+try:
+    from api import api_bp, setup_api_routes, setup_knowledge_routes
+    from api.swagger import swagger_ui_blueprint, swagger_json_bp
+    
+    # Register blueprints
+    app.register_blueprint(api_bp)
+    app.register_blueprint(swagger_ui_blueprint)
+    app.register_blueprint(swagger_json_bp)
+    
+    # Setup additional routes
+    setup_api_routes()
+    setup_knowledge_routes()
+    
+    has_api = True
+except ImportError as e:
+    print(f"API module not available: {e}")
+    has_api = False
+
+# Try to import evaluation dashboard
+try:
+    from evaluation.dashboard import evaluation_bp
+
+# Blueprint registrations:
+app.register_blueprint(api_bp)
+app.register_blueprint(swagger_ui_blueprint)
+app.register_blueprint(swagger_json_bp)
+app.register_blueprint(evaluation_bp)
+
+# Flask routes:
+@app.route('/', methods=[GET])
+def index(): "Home page with search interface"
+@app.route('/search', methods=[GET])
+def search(): "Search interface page"
+@app.route('/chat', methods=[GET])
+def chat(): "Chat interface with RAG assistant"
+@app.route('/concepts', methods=[GET])
+def concepts(): "Concepts explorer page"
+@app.route('/content/<int:content_id>', methods=[GET])
+def content_details(): "Content details page"
+@app.route('/video/<account>/<shortcode>', methods=[GET])
+def video(): "Legacy video detail page - redirects to content page if possible"
+@app.route('/about', methods=[GET])
+def about(): "About page"
+@app.route('/stats', methods=[GET])
+def stats(): "Legacy statistics page - redirects to admin dashboard"
+@app.route('/media/<path:path>', methods=[GET])
+def media(): "Serve media files"
+
+# Functions:
+def get_db() [complexity: 2 - low]: "Get database connection with row factory for easy access"
+def close_connection(exception) [complexity: 2 - low]: "Close database connection when app context ends"
+def get_video_by_shortcode(shortcode) [complexity: 2 - low]: "Legacy cache for videos by shortcode"
+def get_recent_videos(limit = 10, account = None) [complexity: 4 - low]: "Legacy cache for recent videos"
+def clear_caches() [complexity: 1 - low]: "Clear all cached data"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/arxiv_collector.py
+================================================================================
+
+# Key imports:
+# import os
+# import time
+# import json
+# import logging
+# import sqlite3
+# ... and 6 more imports
+
+# Functions:
+def setup_directories() [complexity: 1 - low]: "Create necessary directories for storing paper data"
+def get_proxy() [complexity: 9 - medium]: "Get a proxy from the configuration"
+def extract_text_from_pdf(pdf_path) [complexity: 4 - low]: "Extract text content from a PDF file using PyPDF2"
+def extract_text_with_pypdf(pdf_path) [complexity: 3 - low]: "Extract text content from a PDF file using PyPDF2"
+def extract_text_with_pypdf2(pdf_path) [complexity: 10 - medium]: "Extract text from a PDF file using PyPDF2"
+def extract_text_with_mistral_ocr(pdf_path) [complexity: 9 - medium]: "Extract text from a PDF file using Mistral OCR"
+def parse_sections(text) [complexity: 24 - high]: "Attempt to parse sections from extracted PDF text"
+def download_paper_from_url(url, conn, paper_dir, use_mistral_ocr = False) [complexity: 23 - high]: "Download a paper from a given URL, which can be a direct PDF link or a webpage containing a PDF link"
+def collect_papers(max_papers = None, force_update = False) [complexity: 15 - high]: "Collect papers from ArXiv and custom URLs"
+def download_arxiv_paper(paper_id, papers_pdf_dir) [complexity: 4 - low]: "Download a paper from ArXiv by ID"
+def is_duplicate_paper(conn, text, title, abstract, threshold = 0.8) [complexity: 1 - low]: "Check if a paper is a duplicate based on title, abstract, and content similarity"
+def process_arxiv_papers(categories, max_results, papers_pdf_dir, papers_text_dir, conn, source_type_id, force_update = False) [complexity: 33 - high]: "Process papers from ArXiv based on categories"
+def ensure_database_schema(conn) [complexity: 6 - medium]: "Ensure that the database schema has all required tables and columns"
+def download_papers_only(max_papers = 50, categories = None, save_dir = None, custom_search_query = None) [complexity: 21 - high]: "Download papers from ArXiv without processing them."
+def batch_process_pdfs(max_papers = None, use_mistral = True) [complexity: 18 - high]: "Process PDFs in batches, extracting text and inserting into the database."
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/chunking.py
+================================================================================
+
+# Key imports:
+# import logging
+# import re
+# from typing import List, Dict, Any
+
+# Functions:
+def chunk_text(text: str, chunk_size: int = 1000, overlap: int = 200) [complexity: 15 - high]: "Split text into overlapping chunks for better context preservation"
+def chunk_with_metadata(content, chunk_size: int = 1000, overlap: int = 200) [complexity: 6 - medium]: "Split content with metadata into chunks, preserving metadata in each chunk"
+def prepare_content_for_embedding(title: str, description: str, content: str) [complexity: 4 - low]: "Prepare content by combining title, description, and content with appropriate formatting"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/concept_extractor.py
+================================================================================
+
+# Key imports:
+# import os
+# import json
+# import time
+# import logging
+# import sqlite3
+# ... and 3 more imports
+
+# Functions:
+def extract_concepts_from_text(text, content_type, title = , context = ) [complexity: 11 - high]: "Extract AI concepts from text content using Claude"
+def store_concepts(content_id, source_type_id, concepts_data) [complexity: 16 - high]: "Store extracted concepts in the database"
+def process_unprocessed_content(limit = 5, source_type = None) [complexity: 16 - high]: "Process content that hasn't had concepts extracted yet"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/concept_schema.sql
+================================================================================
+
+# Database Tables:
+CREATE TABLE concepts (
+    id INTEGER PRIMARY KEY
+    name TEXT NOT NULL
+    description TEXT
+    category TEXT
+    first_seen_date TEXT
+    last_updated TEXT
+    reference_count INTEGER DEFAULT 1
+);
+
+CREATE TABLE concept_relationships (
+    id INTEGER PRIMARY KEY
+    source_concept_id INTEGER NOT NULL
+    target_concept_id INTEGER NOT NULL
+    relationship_type TEXT NOT NULL
+    first_seen_date TEXT
+    last_updated TEXT
+    reference_count INTEGER DEFAULT 1
+    confidence_score REAL DEFAULT 1.0
+    FOREIGN KEY(source_concept_id) REFERENCES concepts(id)
+    FOREIGN KEY(target_concept_id) REFERENCES concepts(id)
+);
+
+CREATE TABLE content_concepts (
+    id INTEGER PRIMARY KEY
+    content_id INTEGER NOT NULL
+    concept_id INTEGER NOT NULL
+    importance TEXT NOT NULL
+    date_extracted TEXT NOT NULL
+    FOREIGN KEY(content_id) REFERENCES ai_content(id)
+    FOREIGN KEY(concept_id) REFERENCES concepts(id)
+);
+
+CREATE TABLE search_query_log (
+    id INTEGER PRIMARY KEY
+    query TEXT NOT NULL
+    vector_weight REAL
+    keyword_weight REAL
+    search_type TEXT
+    source_type TEXT
+    result_count INTEGER
+    top_result_ids TEXT
+    JSON array of content IDs
+    timestamp TEXT NOT NULL
+    query_features TEXT -- JSON of query features
+);
+
+CREATE TABLE search_feedback (
+    id INTEGER PRIMARY KEY
+    query_log_id INTEGER
+    content_id INTEGER
+    feedback_score INTEGER
+    5 rating feedback_type TEXT
+    feedback_text TEXT
+    timestamp TEXT NOT NULL
+    FOREIGN KEY(query_log_id) REFERENCES search_query_log(id)
+);
+
+CREATE TABLE weight_patterns (
+    id INTEGER PRIMARY KEY
+    pattern_name TEXT NOT NULL
+    query_pattern TEXT
+    JSON of query features
+    vector_weight REAL
+    keyword_weight REAL
+    positive_feedback_count INTEGER DEFAULT 0
+    negative_feedback_count INTEGER DEFAULT 0
+    last_updated TEXT
+    confidence_score REAL DEFAULT 0.5
+);
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/config.py
+================================================================================
+
+# Key imports:
+# import os
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/context_builder.py
+================================================================================
+
+# Key imports:
+# from vector and hybrid search, performs ranking and selection, and formats
+the context appropriately for LLM consumption.
+"""
+import os
+import sys
+import logging
+import json
+import sqlite3
+import time
+from datetime import datetime
+from typing import List, Dict, Any, Tuple, Union, Optional, Set
+import numpy as np
+
+# Add parent directory to path to ensure imports work
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import local modules
+import config
+from embeddings import EmbeddingGenerator
+import vector_search
+import hybrid_search
+from chunking import chunk_text
+
+# Functions:
+def main() [complexity: 3 - low]: "Main function for direct script execution"
+def __init__(self, max_tokens: int = ..., max_results: int = ..., db_path: str = ...) [complexity: 1 - low]: "Initialize the context builder"
+def estimate_tokens(self, text: str) [complexity: 1 - low]: "Estimate the number of tokens in a text"
+def get_content_metadata(self, content_id: int) [complexity: 10 - medium]: "Get additional metadata for a content item"
+def select_context(self, search_results, diversity_factor: float = 0.2) [complexity: 17 - high]: "Select diverse context from search results to maximize information value"
+def format_context(self, selected_context) [complexity: 8 - medium]: "Format selected context for LLM consumption with source citations"
+def build_rag_prompt(self, query: str, context: str) [complexity: 1 - low]: "Build a prompt for the LLM that includes the query and context"
+def build_context_for_query(self, query: str, search_type: str = hybrid, vector_weight = None, keyword_weight = None, source_type = None, top_k: int = 10) [complexity: 3 - low]: "Build context for a user query using the specified search method"
+
+# Classes:
+class ContextBuilder: "Class for selecting, formatting and optimizing context for LLM consumption"
+    def __init__(self, max_tokens: int = ..., max_results: int = ..., db_path: str = ...) [complexity: 1 - low]: "Initialize the context builder"
+    def estimate_tokens(self, text: str) [complexity: 1 - low]: "Estimate the number of tokens in a text"
+    def get_content_metadata(self, content_id: int) [complexity: 10 - medium]: "Get additional metadata for a content item"
+    def select_context(self, search_results, diversity_factor: float = 0.2) [complexity: 17 - high]: "Select diverse context from search results to maximize information value"
+    def format_context(self, selected_context) [complexity: 8 - medium]: "Format selected context for LLM consumption with source citations"
+    def build_rag_prompt(self, query: str, context: str) [complexity: 1 - low]: "Build a prompt for the LLM that includes the query and context"
+    def build_context_for_query(self, query: str, search_type: str = hybrid, vector_weight = None, keyword_weight = None, source_type = None, top_k: int = 10) [complexity: 3 - low]: "Build context for a user query using the specified search method"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/convert_jsonxz.py
+================================================================================
+
+# Key imports:
+# import os
+# import sys
+# import json
+# import lzma
+# import logging
+# ... and 3 more imports
+
+# Functions:
+def setup_directories(account_name) [complexity: 1 - low]: "Create necessary directories if they don't exist"
+def find_jsonxz_files(account_name) [complexity: 14 - high]: "Find all JSON.XZ files in the Instaloader directory for the given account"
+def find_all_accounts() [complexity: 8 - medium]: "Find all accounts in the download directory"
+def normalize_video_path(video_path) [complexity: 5 - low]: "Convert the Unicode path to a regular path that can be used by the system"
+def copy_video_file(video_path, account_name, shortcode) [complexity: 11 - high]: "Copy video file from the Instaloader path to the standard download directory"
+def convert_jsonxz_to_json(jsonxz_file, metadata_dir, account_name, copy_videos = True) [complexity: 16 - high]: "Convert a single JSON.XZ file to a regular JSON file"
+def main() [complexity: 19 - high]: "Main function to convert JSON.XZ files to JSON"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/create_db.sql
+================================================================================
+
+# Database Tables:
+CREATE TABLE videos (
+    id INTEGER PRIMARY KEY
+    shortcode TEXT UNIQUE
+    account TEXT
+    filename TEXT
+    caption TEXT
+    transcript TEXT
+    summary TEXT
+    timestamp TEXT
+    download_date TEXT
+    url TEXT
+    likes INTEGER
+    comments INTEGER
+    word_count INTEGER
+    duration_seconds INTEGER
+    key_phrases TEXT
+);
+
+CREATE TABLE tags (
+    id INTEGER PRIMARY KEY
+    video_id INTEGER
+    tag TEXT
+    FOREIGN KEY (video_id) REFERENCES videos(id)
+);
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/db_migration.py
+================================================================================
+
+# Key imports:
+# import os
+# import logging
+# import sqlite3
+# from datetime import datetime
+# import json
+# ... and 1 more imports
+
+# Functions:
+def migrate_database() [complexity: 34 - high]: "Perform database migration to support multiple content sources and vector embeddings"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/downloader.py
+================================================================================
+
+# Key imports:
+# import os
+# import time
+# import json
+# import logging
+# import random
+# ... and 1 more imports
+
+# Functions:
+def setup_directories() [complexity: 2 - low]: "Create necessary directories if they don't exist"
+def get_random_delay() [complexity: 1 - low]: "Return a more human-like delay between actions"
+def get_next_account() [complexity: 8 - medium]: "Get the next available account from rotation"
+def mark_account_cooldown(username, cooldown_minutes = ...) [complexity: 5 - low]: "Mark an account as in cooldown after a failure"
+def get_proxy(country = None) [complexity: 18 - high]: "Get a proxy from the available pool"
+def test_proxy(proxy_url, test_url = https://www.instagram.com/favicon.ico, timeout = 30) [complexity: 6 - medium]: "Test if a proxy server is working correctly"
+def mark_proxy_cooldown(proxy, cooldown_minutes = ...) [complexity: 5 - low]: "Mark a proxy as in cooldown after a failure"
+def login_with_session(L, username, password) [complexity: 9 - medium]: "Login with proper session management and error handling"
+def create_instaloader_instance(use_login = True, account = None, proxy = None, force_refresh = False) [complexity: 11 - high]: "Create an Instaloader instance with appropriate settings for our use case"
+def retry_with_backoff(func, max_retries = 3, initial_delay = 5) [complexity: 4 - low]: "Execute a function with exponential backoff retries"
+def download_from_instagram(accounts = None, force_refresh = False, use_auth = True) [complexity: 31 - high]: "Download content from Instagram accounts with proper rate limiting"
+def get_paginated_posts(profile, account_name, L, fetch_limit = 500) [complexity: 20 - high]: "Get posts from a profile with proper pagination to work around Instagram API limitations."
+def process_posts(L, profile, account_name, posts, downloaded_count, success_count, custom_delay = ..., force_refresh = False) [complexity: 28 - high]: "Process posts for an account"
+def get_posts_alternative(profile, username) [complexity: 7 - medium]: "Alternative approach to fetch posts when the standard iterator fails"
+def get_random_user_agent() [complexity: 1 - low]: "Return a random user agent to appear more human-like"
+def schedule_refresh(username, backoff_minutes = 60) [complexity: 4 - low]: "Schedule a refresh attempt with exponential backoff"
+def should_refresh_account(username) [complexity: 5 - low]: "Check if an account is due for refresh based on backoff schedule"
+def is_account_due_for_refresh(account_name) [complexity: 8 - medium]: "Check if an account is due for refresh based on its last processing time"
+def mark_account_processed(account_name, success = True) [complexity: 6 - medium]: "Mark an account as processed and update its refresh schedule"
+def mark_account_cooldown(username, cooldown_minutes = ...) [complexity: 4 - low]: "Mark an account for cooldown after a failure"
+def get_latest_downloaded_post_date(account_name) [complexity: 8 - medium]: "Get the date of the latest downloaded post for an account"
+def has_new_posts(profile, account_name) [complexity: 5 - low]: "Check if an account has new posts since the last download"
+def download_video_directly(post, account_dir, shortcode, account_name = None) [complexity: 8 - medium]: "Download a video directly from a post, bypassing Instaloader's file existence checks."
+def check_file_existence(account_dir, date_utc_str, shortcode, account_name = None) [complexity: 4 - low]: "Check if a file exists in any of the possible formats and locations."
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/embeddings.py
+================================================================================
+
+# Key imports:
+# import os
+# import logging
+# import sqlite3
+# import pickle
+# import time
+# ... and 1 more imports
+
+# Functions:
+def main() [complexity: 3 - low]: "Main function for direct script execution"
+def __init__(self, model_name: str = multi-qa-mpnet-base-dot-v1) [complexity: 3 - low]: "Initialize the embedding generator"
+def generate_embedding(self, text: str) [complexity: 7 - medium]: "Generate embedding for text using the loaded model"
+def _fallback_embedding(self, text: str) [complexity: 3 - low]: "Fallback method for generating embeddings when sentence-transformers is not available"
+def process_content_item(self, content_id: int, force_update: bool = False, chunk_size: int = 1000, chunk_overlap: int = 200) [complexity: 12 - high]: "Process a content item from the database, generating and storing embeddings"
+def process_batch(self, batch_size: int = 10, max_items = None, source_type = None) [complexity: 11 - high]: "Process a batch of content items from the database"
+
+# Classes:
+class EmbeddingGenerator: "Class for generating embeddings from text content"
+    def __init__(self, model_name: str = multi-qa-mpnet-base-dot-v1) [complexity: 3 - low]: "Initialize the embedding generator"
+    def generate_embedding(self, text: str) [complexity: 7 - medium]: "Generate embedding for text using the loaded model"
+    def _fallback_embedding(self, text: str) [complexity: 3 - low]: "Fallback method for generating embeddings when sentence-transformers is not available"
+    def process_content_item(self, content_id: int, force_update: bool = False, chunk_size: int = 1000, chunk_overlap: int = 200) [complexity: 12 - high]: "Process a content item from the database, generating and storing embeddings"
+    def process_batch(self, batch_size: int = 10, max_items = None, source_type = None) [complexity: 11 - high]: "Process a batch of content items from the database"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/evaluation/__init__.py
+================================================================================
+
+# Key imports:
+# import os
+# import logging
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/evaluation/answer_evaluator.py
+================================================================================
+
+# Key imports:
+# import logging
+# import json
+# import sqlite3
+# from datetime import datetime
+import sys
+import os
+
+# Add parent directory to path to allow imports from main package
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config
+
+try:
+    import anthropic
+
+# Functions:
+def __init__(self, model = None) [complexity: 3 - low]: "Initialize evaluator with Claude API client"
+def evaluate_faithfulness(self, answer, context, query = None) [complexity: 12 - high]: "Evaluate if the answer is faithful to the provided context"
+def evaluate_relevance(self, answer, query) [complexity: 12 - high]: "Evaluate if the answer is relevant to the query"
+def save_evaluation_results(self, eval_results, db_path = None) [complexity: 3 - low]: "Save answer evaluation results to database"
+
+# Classes:
+class AnswerEvaluator: "Evaluator for LLM answer quality using Claude"
+    def __init__(self, model = None) [complexity: 3 - low]: "Initialize evaluator with Claude API client"
+    def evaluate_faithfulness(self, answer, context, query = None) [complexity: 12 - high]: "Evaluate if the answer is faithful to the provided context"
+    def evaluate_relevance(self, answer, query) [complexity: 12 - high]: "Evaluate if the answer is relevant to the query"
+    def save_evaluation_results(self, eval_results, db_path = None) [complexity: 3 - low]: "Save answer evaluation results to database"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/evaluation/dashboard.py
+================================================================================
+
+# Key imports:
+# import os
+# import sqlite3
+# import logging
+# import json
+# from datetime import datetime
+from flask import Blueprint, render_template, request, jsonify, redirect, url_for
+import sys
+import os
+
+# Add parent directory to path to allow imports from main package
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+import config
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger('evaluation_dashboard')
+
+# Create Flask blueprint
+evaluation_bp = Blueprint('evaluation', __name__, 
+                         url_prefix='/evaluation',
+                         template_folder='templates',
+                         static_folder='static')
+
+@evaluation_bp.route('/')
+def evaluation_dashboard():
+    """Main evaluation dashboard page"""
+    return render_template('evaluation/dashboard.html')
+
+@evaluation_bp.route('/retrieval')
+def retrieval_dashboard():
+    """Retrieval metrics dashboard page"""
+    return render_template('evaluation/retrieval.html')
+
+@evaluation_bp.route('/answer-quality')
+def answer_quality_dashboard():
+    """Answer quality dashboard page"""
+    return render_template('evaluation/answer_quality.html')
+
+@evaluation_bp.route('/datasets')
+def datasets_dashboard():
+    """Test datasets dashboard page"""
+    return render_template('evaluation/datasets.html')
+
+#
+# API Endpoints for Dashboard Data
+#
+
+@evaluation_bp.route('/api/test-results')
+def test_results():
+    """Get test results for dashboard"""
+    test_type = request.args.get('type', 'all')
+    limit = int(request.args.get('limit', 10))
+    
+    conn = sqlite3.connect(config.DB_PATH)
+    cursor = conn.cursor()
+    
+    try:
+        # Build query
+        query = """
+            SELECT id, test_type, test_name, date_created
+            FROM test_results
+        """
+        
+        params = []
+        if test_type != 'all':
+            query += " WHERE test_type = ?"
+            params.append(test_type)
+            
+        query += " ORDER BY date_created DESC LIMIT ?"
+        params.append(limit)
+        
+        # Execute query
+        cursor.execute(query, params)
+        
+        results = []
+        for row in cursor.fetchall():
+            # Try to extract summary metrics
+            cursor.execute(
+                "SELECT results_json FROM test_results WHERE id = ?",
+                (row[0],)
+            )
+            
+            metrics_row = cursor.fetchone()
+            metrics = None
+            
+            if metrics_row:
+                try:
+                    results_json = json.loads(metrics_row[0])
+                    if 'metrics' in results_json:
+                        metrics = results_json['metrics']
+                except:
+                    pass
+            
+            results.append({
+                'id': row[0],
+                'test_type': row[1],
+                'test_name': row[2],
+                'date_created': row[3],
+                'metrics': metrics
+            })
+            
+        return jsonify(results)
+        
+    except Exception as e:
+        logger.error(f"Error getting test results: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+        
+    finally:
+        conn.close()
+
+@evaluation_bp.route('/api/test-result/<int:result_id>')
+def test_result_detail(result_id):
+    """Get detailed test result"""
+    conn = sqlite3.connect(config.DB_PATH)
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(
+            "SELECT test_type, test_name, date_created, results_json FROM test_results WHERE id = ?",
+            (result_id,)
+        )
+        
+        row = cursor.fetchone()
+        
+        if not row:
+            return jsonify({'error': 'Test result not found'}), 404
+            
+        test_type, test_name, date_created, results_json = row
+        
+        results = json.loads(results_json)
+        
+        return jsonify({
+            'id': result_id,
+            'test_type': test_type,
+            'test_name': test_name,
+            'date_created': date_created,
+            'results': results
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting test result detail: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+        
+    finally:
+        conn.close()
+
+@evaluation_bp.route('/api/metrics/summary')
+def metrics_summary():
+    """Get summary metrics for dashboard"""
+    conn = sqlite3.connect(config.DB_PATH)
+    cursor = conn.cursor()
+    
+    try:
+        # Get latest retrieval test metrics
+        cursor.execute("""
+            SELECT results_json FROM test_results 
+            WHERE test_type = 'retrieval'
+            ORDER BY date_created DESC
+            LIMIT 1
+        """)
+        
+        retrieval_row = cursor.fetchone()
+        retrieval_metrics = None
+        
+        if retrieval_row:
+            try:
+                results = json.loads(retrieval_row[0])
+                retrieval_metrics = {}
+                
+                for search_type, metrics in results.get('metrics', {}).items():
+                    if 'aggregate' in metrics:
+                        retrieval_metrics[search_type] = metrics['aggregate']
+            except:
+                pass
+        
+        # Get latest answer quality metrics
+        cursor.execute("""
+            SELECT results_json FROM test_results 
+            WHERE test_type = 'answer_quality'
+            ORDER BY date_created DESC
+            LIMIT 1
+        """)
+        
+        answer_row = cursor.fetchone()
+        answer_metrics = None
+        
+        if answer_row:
+            try:
+                results = json.loads(answer_row[0])
+                answer_metrics = results.get('metrics', {})
+            except:
+                pass
+        
+        # Get historical metrics for trends
+        cursor.execute("""
+            SELECT test_type, date_created, results_json 
+            FROM test_results
+            WHERE test_type IN ('retrieval', 'answer_quality')
+            ORDER BY date_created ASC
+            LIMIT 20
+        """)
+        
+        trends = {'retrieval': [], 'answer_quality': []}
+        
+        for row in cursor.fetchall():
+            test_type, date_created, results_json = row
+            
+            try:
+                results = json.loads(results_json)
+                
+                if test_type == 'retrieval':
+                    for search_type, metrics in results.get('metrics', {}).items():
+                        if 'aggregate' in metrics and 'avg_f1' in metrics['aggregate']:
+                            trends['retrieval'].append({
+                                'date': date_created,
+                                'search_type': search_type,
+                                'f1': metrics['aggregate']['avg_f1']
+                            })
+                elif test_type == 'answer_quality':
+                    if 'metrics' in results and 'combined_score' in results['metrics']:
+                        trends['answer_quality'].append({
+                            'date': date_created,
+                            'combined_score': results['metrics']['combined_score']
+                        })
+            except:
+                pass
+        
+        return jsonify({
+            'retrieval': retrieval_metrics,
+            'answer_quality': answer_metrics,
+            'trends': trends
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting metrics summary: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+        
+    finally:
+        conn.close()
+
+@evaluation_bp.route('/api/datasets')
+def test_datasets():
+    """Get test datasets"""
+    conn = sqlite3.connect(config.DB_PATH)
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            SELECT id, name, date_created, 
+                  (SELECT COUNT(*) FROM json_each(queries_json)) as query_count
+            FROM test_datasets
+            ORDER BY date_created DESC
+        """)
+        
+        results = []
+        for row in cursor.fetchall():
+            results.append({
+                'id': row[0],
+                'name': row[1],
+                'date_created': row[2],
+                'query_count': row[3]
+            })
+            
+        return jsonify(results)
+        
+    except Exception as e:
+        logger.error(f"Error getting test datasets: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+        
+    finally:
+        conn.close()
+
+@evaluation_bp.route('/api/dataset/<int:dataset_id>')
+def dataset_detail(dataset_id):
+    """Get detailed dataset information"""
+    conn = sqlite3.connect(config.DB_PATH)
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute(
+            "SELECT name, date_created, queries_json FROM test_datasets WHERE id = ?",
+            (dataset_id,)
+        )
+        
+        row = cursor.fetchone()
+        
+        if not row:
+            return jsonify({'error': 'Dataset not found'}), 404
+            
+        name, date_created, queries_json = row
+        
+        queries = json.loads(queries_json)
+        
+        return jsonify({
+            'id': dataset_id,
+            'name': name,
+            'date_created': date_created,
+            'queries': queries
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting dataset detail: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+        
+    finally:
+        conn.close()
+
+@evaluation_bp.route('/api/answer-evaluations')
+def answer_evaluations():
+    """Get answer evaluations"""
+    limit = int(request.args.get('limit', 20))
+    
+    conn = sqlite3.connect(config.DB_PATH)
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            SELECT id, query_id, query_text, faithfulness_score, relevance_score, date_evaluated
+            FROM answer_evaluations
+            ORDER BY date_evaluated DESC
+            LIMIT ?
+        """, (limit,))
+        
+        results = []
+        for row in cursor.fetchall():
+            results.append({
+                'id': row[0],
+                'query_id': row[1],
+                'query_text': row[2],
+                'faithfulness_score': row[3],
+                'relevance_score': row[4],
+                'date_evaluated': row[5]
+            })
+            
+        return jsonify(results)
+        
+    except Exception as e:
+        logger.error(f"Error getting answer evaluations: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+        
+    finally:
+        conn.close()
+
+@evaluation_bp.route('/api/answer-evaluation/<int:eval_id>')
+def answer_evaluation_detail(eval_id):
+    """Get detailed answer evaluation"""
+    conn = sqlite3.connect(config.DB_PATH)
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            SELECT query_id, query_text, answer_text, context_text,
+                  faithfulness_score, faithfulness_explanation,
+                  relevance_score, relevance_explanation,
+                  date_evaluated
+            FROM answer_evaluations
+            WHERE id = ?
+        """, (eval_id,))
+        
+        row = cursor.fetchone()
+        
+        if not row:
+            return jsonify({'error': 'Answer evaluation not found'}), 404
+            
+        return jsonify({
+            'id': eval_id,
+            'query_id': row[0],
+            'query_text': row[1],
+            'answer_text': row[2],
+            'context_text': row[3],
+            'faithfulness_score': row[4],
+            'faithfulness_explanation': row[5],
+            'relevance_score': row[6],
+            'relevance_explanation': row[7],
+            'date_evaluated': row[8]
+        })
+        
+    except Exception as e:
+        logger.error(f"Error getting answer evaluation detail: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+        
+    finally:
+        conn.close()
+
+# Add this blueprint to app.py
+# from evaluation.dashboard import evaluation_bp
+
+# Blueprint registrations:
+app.register_blueprint(evaluation_bp)
+
+# Flask routes:
+@evaluation_bp.route('/', methods=[GET])
+def evaluation_dashboard(): "Main evaluation dashboard page"
+@evaluation_bp.route('/retrieval', methods=[GET])
+def retrieval_dashboard(): "Retrieval metrics dashboard page"
+@evaluation_bp.route('/answer-quality', methods=[GET])
+def answer_quality_dashboard(): "Answer quality dashboard page"
+@evaluation_bp.route('/datasets', methods=[GET])
+def datasets_dashboard(): "Test datasets dashboard page"
+@evaluation_bp.route('/api/test-results', methods=[GET])
+def test_results(): "Get test results for dashboard"
+@evaluation_bp.route('/api/test-result/<int:result_id>', methods=[GET])
+def test_result_detail(): "Get detailed test result"
+@evaluation_bp.route('/api/metrics/summary', methods=[GET])
+def metrics_summary(): "Get summary metrics for dashboard"
+@evaluation_bp.route('/api/datasets', methods=[GET])
+def test_datasets(): "Get test datasets"
+@evaluation_bp.route('/api/dataset/<int:dataset_id>', methods=[GET])
+def dataset_detail(): "Get detailed dataset information"
+@evaluation_bp.route('/api/answer-evaluations', methods=[GET])
+def answer_evaluations(): "Get answer evaluations"
+@evaluation_bp.route('/api/answer-evaluation/<int:eval_id>', methods=[GET])
+def answer_evaluation_detail(): "Get detailed answer evaluation"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/evaluation/retrieval_metrics.py
+================================================================================
+
+# Key imports:
+# import numpy as np
+# import logging
+# import sqlite3
+# import json
+# from datetime import datetime
+# ... and 3 more imports
+
+# Functions:
+def __init__(self, db_path = None) [complexity: 2 - low]
+def calculate_precision_recall(self, query_id, retrieved_ids, relevant_ids) [complexity: 4 - low]: "Calculate precision, recall, and F1 score"
+def calculate_ndcg(self, query_id, retrieved_ids, relevant_ids_with_scores, k = None) [complexity: 8 - medium]: "Calculate Normalized Discounted Cumulative Gain"
+def evaluate_search_results(self, search_results, ground_truth, metrics = None) [complexity: 13 - high]: "Evaluate search results against ground truth"
+def save_evaluation_results(self, eval_results, evaluation_name, notes = None) [complexity: 2 - low]: "Save evaluation results to database"
+
+# Classes:
+class RetrievalEvaluator: "Evaluator for retrieval quality metrics"
+    def __init__(self, db_path = None) [complexity: 2 - low]
+    def calculate_precision_recall(self, query_id, retrieved_ids, relevant_ids) [complexity: 4 - low]: "Calculate precision, recall, and F1 score"
+    def calculate_ndcg(self, query_id, retrieved_ids, relevant_ids_with_scores, k = None) [complexity: 8 - medium]: "Calculate Normalized Discounted Cumulative Gain"
+    def evaluate_search_results(self, search_results, ground_truth, metrics = None) [complexity: 13 - high]: "Evaluate search results against ground truth"
+    def save_evaluation_results(self, eval_results, evaluation_name, notes = None) [complexity: 2 - low]: "Save evaluation results to database"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/evaluation/templates/evaluation/answer_quality.html
+================================================================================
+
+# Template structure:
+{% extends 'evaluation/layout.html' %}
+{% block content %}...{% endblock %}
+{% block page_title %}...{% endblock %}
+{% block page_actions %}...{% endblock %}
+{% block scripts %}...{% endblock %}
+{% block title %}...{% endblock %}
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/evaluation/templates/evaluation/dashboard.html
+================================================================================
+
+# Template structure:
+{% extends 'evaluation/layout.html' %}
+{% block content %}...{% endblock %}
+{% block page_title %}...{% endblock %}
+{% block page_actions %}...{% endblock %}
+{% block scripts %}...{% endblock %}
+{% block title %}...{% endblock %}
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/evaluation/templates/evaluation/datasets.html
+================================================================================
+
+# Template structure:
+{% extends 'evaluation/layout.html' %}
+{% block content %}...{% endblock %}
+{% block page_title %}...{% endblock %}
+{% block page_actions %}...{% endblock %}
+{% block scripts %}...{% endblock %}
+{% block title %}...{% endblock %}
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/evaluation/templates/evaluation/layout.html
+================================================================================
+
+# Template structure:
+{% block extra_css %}...{% endblock %}
+{% block content %}...{% endblock %}
+{% block page_title %}...{% endblock %}
+{% block page_actions %}...{% endblock %}
+{% block scripts %}...{% endblock %}
+{% block title %}...{% endblock %}
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/evaluation/templates/evaluation/retrieval_dashboard.html
+================================================================================
+
+# Template structure:
+{% extends 'evaluation/layout.html' %}
+{% block content %}...{% endblock %}
+{% block page_title %}...{% endblock %}
+{% block page_actions %}...{% endblock %}
+{% block scripts %}...{% endblock %}
+{% block title %}...{% endblock %}
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/evaluation/test_queries.py
+================================================================================
+
+# Key imports:
+# import os
+# import json
+# import random
+# import logging
+# import sqlite3
+# ... and 4 more imports
+
+# Functions:
+def __init__(self, db_path = None) [complexity: 2 - low]
+def generate_concept_queries(self, num_queries = 15) [complexity: 11 - high]: "Generate test queries based on concepts in the knowledge graph"
+def generate_content_queries(self, num_queries = 10) [complexity: 8 - medium]: "Generate test queries based on content titles and descriptions"
+def _title_to_question(self, title, source_type) [complexity: 5 - low]: "Convert content title to question"
+def create_test_dataset(self, concept_queries = 15, content_queries = 10) [complexity: 7 - medium]: "Create complete test dataset with different query types"
+
+# Classes:
+class TestQueryGenerator: "Generator for test queries with ground truth"
+    def __init__(self, db_path = None) [complexity: 2 - low]
+    def generate_concept_queries(self, num_queries = 15) [complexity: 11 - high]: "Generate test queries based on concepts in the knowledge graph"
+    def generate_content_queries(self, num_queries = 10) [complexity: 8 - medium]: "Generate test queries based on content titles and descriptions"
+    def _title_to_question(self, title, source_type) [complexity: 5 - low]: "Convert content title to question"
+    def create_test_dataset(self, concept_queries = 15, content_queries = 10) [complexity: 7 - medium]: "Create complete test dataset with different query types"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/evaluation/test_runner.py
+================================================================================
+
+# Key imports:
+# import os
+# import logging
+# import json
+# import time
+# import sqlite3
+# ... and 1 more imports
+
+# Functions:
+def __init__(self, db_path = None, rag_system = None) [complexity: 2 - low]
+def load_test_dataset(self, dataset_id = None, dataset_name = None, file_path = None) [complexity: 7 - medium]: "Load test dataset from database or file"
+def run_retrieval_tests(self, dataset, search_types = None, top_k = 10, vector_weights = None, keyword_weights = None) [complexity: 25 - high]: "Run retrieval tests on dataset"
+def run_answer_tests(self, dataset, search_type = hybrid, top_k = 5, vector_weight = None, keyword_weight = None, max_queries = 10) [complexity: 10 - medium]: "Run answer quality tests on dataset"
+def _save_test_results(self, results, test_type) [complexity: 2 - low]: "Save test results to database and file"
+
+# Classes:
+class RAGTestRunner: "Automated test runner for RAG system"
+    def __init__(self, db_path = None, rag_system = None) [complexity: 2 - low]
+    def load_test_dataset(self, dataset_id = None, dataset_name = None, file_path = None) [complexity: 7 - medium]: "Load test dataset from database or file"
+    def run_retrieval_tests(self, dataset, search_types = None, top_k = 10, vector_weights = None, keyword_weights = None) [complexity: 25 - high]: "Run retrieval tests on dataset"
+    def run_answer_tests(self, dataset, search_type = hybrid, top_k = 5, vector_weight = None, keyword_weight = None, max_queries = 10) [complexity: 10 - medium]: "Run answer quality tests on dataset"
+    def _save_test_results(self, results, test_type) [complexity: 2 - low]: "Save test results to database and file"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/generate_embeddings.py
+================================================================================
+
+# Key imports:
+# import os
+# import sys
+# import logging
+# import sqlite3
+# import time
+# ... and 2 more imports
+
+# Functions:
+def ensure_embedding_table_exists(conn) [complexity: 2 - low]: "Ensure content_embeddings table exists in the database"
+def get_content_items(conn, source_type = None, limit = None, offset: int = 0, skip_existing: bool = True) [complexity: 7 - medium]: "Get content items from the database"
+def process_content_items(content_items, chunk_size: int = 500, chunk_overlap: int = 100) [complexity: 12 - high]: "Process content items, chunk text, and generate embeddings"
+def main() [complexity: 7 - medium]: "Main function for script execution"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/github_collector.py
+================================================================================
+
+# Key imports:
+# import os
+# import json
+# import logging
+# import time
+# import base64
+# ... and 4 more imports
+
+# Functions:
+def get_github_session() [complexity: 2 - low]: "Create a requests session with GitHub API token if available"
+def get_rate_limit_info(session) [complexity: 3 - low]: "Get the current GitHub API rate limit information"
+def wait_for_rate_limit(session) [complexity: 6 - medium]: "Check rate limit and wait if necessary"
+def search_github_repos(session, topics, min_stars = 1000, per_page = 30, max_results = 100) [complexity: 8 - medium]: "Search for repositories based on topics and minimum stars"
+def get_repo_info(session, repo_full_name) [complexity: 3 - low]: "Get detailed information about a repository"
+def get_repo_readme(session, repo_full_name) [complexity: 6 - medium]: "Get repository README content"
+def should_update_repo(conn, repo_full_name) [complexity: 4 - low]: "Check if a repository should be updated based on last crawl time"
+def store_repo_in_db(conn, repo_data, readme) [complexity: 12 - high]: "Store repository information in the database"
+def collect_github_repos(max_repos = None) [complexity: 17 - high]: "Main function to collect GitHub repositories"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/hybrid_search.py
+================================================================================
+
+# Key imports:
+# import os
+# import logging
+# import sqlite3
+# import json
+# import re
+# ... and 1 more imports
+
+# Functions:
+def keyword_search(query: str, top_k: int = 10, source_type = None) [complexity: 8 - medium]: "Perform keyword search using SQLite FTS"
+def get_content_chunks(content_id: int, limit: int = 3) [complexity: 4 - low]: "Get chunks for a content item"
+def determine_weights(query: str) [complexity: 10 - medium]: "Determine weights for vector and keyword search based on query characteristics"
+def hybrid_search(query: str, top_k: int = 5, source_type = None, vector_weight = None, keyword_weight = None, embedding_generator = None) [complexity: 13 - high]: "Perform hybrid search combining vector and keyword search"
+def adjust_weights_from_feedback(query: str, result_id: int, feedback: str, weight_history = None) [complexity: 17 - high]: "Adjust search weights based on user feedback"
+def classify_query_type(query: str) [complexity: 9 - medium]: "Classify the query type based on its characteristics"
+def save_weights_history(weight_history, filepath: str = data/search_weights.json) [complexity: 2 - low]: "Save weight history to a JSON file"
+def load_weights_history(filepath: str = data/search_weights.json) [complexity: 3 - low]: "Load weight history from a JSON file"
+def main() [complexity: 13 - high]: "Main function for direct script execution"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/indexer.py
+================================================================================
+
+# Key imports:
+# import os
+# import json
+# import glob
+# import sqlite3
+# import logging
+# ... and 1 more imports
+
+# Functions:
+def setup_database() [complexity: 1 - low]: "Ensure the database is set up correctly"
+def extract_tags_from_caption(caption) [complexity: 3 - low]: "Extract hashtags from captions"
+def calculate_word_count(text) [complexity: 2 - low]: "Calculate word count from text"
+def index_transcripts() [complexity: 9 - medium]: "Index all transcripts into the database"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/init_db.py
+================================================================================
+
+# Key imports:
+# import os
+# import sqlite3
+# import logging
+# from config import DB_PATH, DATA_DIR
+
+# Functions:
+def init_database() [complexity: 3 - low]: "Initialize the SQLite database with proper schema"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/knowledge_graph.py
+================================================================================
+
+# Key imports:
+# import os
+# import sys
+# import logging
+# import json
+# import sqlite3
+# ... and 2 more imports
+
+# Functions:
+def run_concept_extraction(content_id = None, batch = False, batch_size = 10, max_items = None, source_type = None, force = False, db_path = None) [complexity: 4 - low]: "Run concept extraction from the command line"
+def __init__(self, db_path: str = None) [complexity: 2 - low]: "Initialize with database connection"
+def get_connection(self) [complexity: 1 - low]: "Get a database connection"
+def get_concept_by_id(self, concept_id: int) [complexity: 2 - low]: "Get a concept by ID"
+def get_concept_by_name(self, concept_name: str) [complexity: 2 - low]: "Get a concept by name"
+def search_concepts(self, search_term: str, category = None, min_references: int = 0, limit: int = 20) [complexity: 3 - low]: "Search for concepts matching a search term"
+def get_concept_categories(self) [complexity: 2 - low]: "Get all distinct concept categories"
+def get_concepts_by_category(self, category: str, limit: int = 100) [complexity: 2 - low]: "Get concepts in a specific category"
+def get_top_concepts(self, limit: int = 20) [complexity: 2 - low]: "Get the most referenced concepts"
+def get_related_concepts(self, concept_id: int) [complexity: 3 - low]: "Get concepts related to a specific concept"
+def get_content_with_concept(self, concept_id: int, limit: int = 10) [complexity: 2 - low]: "Get content items that contain a specific concept"
+def __init__(self, db_path: str = None) [complexity: 2 - low]: "Initialize with database connection"
+def get_connection(self) [complexity: 1 - low]: "Get a database connection"
+def get_relationship_types(self) [complexity: 2 - low]: "Get all distinct relationship types"
+def get_relationships_by_type(self, rel_type: str, limit: int = 100) [complexity: 2 - low]: "Get relationships of a specific type"
+def get_relationship(self, source_id: int, target_id: int, rel_type: str = None) [complexity: 3 - low]: "Get a specific relationship between two concepts"
+def get_all_relationships(self, min_confidence: float = 0.5, limit: int = 1000) [complexity: 2 - low]: "Get all relationships with a minimum confidence score"
+def __init__(self, db_path: str = None) [complexity: 3 - low]: "Initialize knowledge graph builder"
+def build_graph(self, min_confidence: float = 0.5, min_references: int = 1, include_categories = None, exclude_categories = None, relationship_types = None) [complexity: 8 - medium]: "Build a NetworkX directed graph from concept relationships"
+def get_central_concepts(self, limit: int = 10, centrality_type: str = degree) [complexity: 8 - medium]: "Get the most central concepts in the graph"
+def get_concept_communities(self, algorithm: str = louvain) [complexity: 6 - medium]: "Detect communities/clusters of concepts"
+def _label_propagation_communities(self) [complexity: 3 - low]: "Use label propagation for community detection"
+def _clique_communities(self) [complexity: 5 - low]: "Use clique percolation for community detection"
+def get_community_summary(self, communities, min_community_size: int = 3) [complexity: 10 - medium]: "Generate summary of community contents"
+def find_paths_between_concepts(self, source_id: int, target_id: int, max_paths: int = 3) [complexity: 10 - medium]: "Find paths between two concepts in the graph"
+def get_concept_neighborhood(self, concept_id: int, max_distance: int = 2) [complexity: 5 - low]: "Get a subgraph of concepts around a given concept"
+def analyze_concept(self, concept_id: int) [complexity: 8 - medium]: "Perform comprehensive analysis of a concept"
+def __init__(self, graph = None, output_dir: str = visualizations) [complexity: 2 - low]: "Initialize the visualizer"
+def set_graph(self, graph) [complexity: 1 - low]: "Set the graph to visualize"
+def visualize_with_matplotlib(self, output_file: str = knowledge_graph.png, layout: str = spring, node_size_by: str = reference_count, edge_width_by: str = confidence, show_labels: bool = True, label_font_size: int = 8) [complexity: 20 - high]: "Create a static visualization using matplotlib"
+def visualize_interactive(self, output_file: str = knowledge_graph.html, layout: str = force, node_size_by: str = reference_count, edge_width_by: str = confidence, show_communities: bool = False, communities = None) [complexity: 24 - high]: "Create an interactive HTML visualization using Plotly"
+def export_to_gexf(self, output_file: str = knowledge_graph.gexf) [complexity: 2 - low]: "Export graph to GEXF format for use in Gephi"
+def export_to_json(self, output_file: str = knowledge_graph.json) [complexity: 6 - medium]: "Export graph to JSON format"
+def visualize_concept_neighborhood(self, concept_id: int, output_file: str = None, max_distance: int = 2, interactive: bool = True) [complexity: 6 - medium]: "Visualize a specific concept and its neighborhood"
+def __init__(self, db_path: str = None) [complexity: 3 - low]: "Initialize the knowledge graph manager"
+def check_concepts_available(self) [complexity: 4 - low]: "Check if concepts are available in the database"
+def build_graph(self) [complexity: 4 - low]: "Build the knowledge graph with the given parameters"
+def generate_visualizations(self, output_dir: str = visualizations) [complexity: 8 - medium]: "Generate standard set of visualizations"
+def search_and_visualize(self, search_term: str, output_dir: str = visualizations) [complexity: 10 - medium]: "Search for concepts and visualize the neighborhood"
+def get_concept_report(self, concept_id: int) [complexity: 8 - medium]: "Generate a comprehensive report for a specific concept"
+def get_knowledge_graph_stats(self) [complexity: 15 - high]: "Get statistics about the knowledge graph"
+
+# Classes:
+class ConceptQuery: "Query and retrieve concepts from the knowledge graph"
+    def __init__(self, db_path: str = None) [complexity: 2 - low]: "Initialize with database connection"
+    def get_connection(self) [complexity: 1 - low]: "Get a database connection"
+    def get_concept_by_id(self, concept_id: int) [complexity: 2 - low]: "Get a concept by ID"
+    def get_concept_by_name(self, concept_name: str) [complexity: 2 - low]: "Get a concept by name"
+    def search_concepts(self, search_term: str, category = None, min_references: int = 0, limit: int = 20) [complexity: 3 - low]: "Search for concepts matching a search term"
+    def get_concept_categories(self) [complexity: 2 - low]: "Get all distinct concept categories"
+    def get_concepts_by_category(self, category: str, limit: int = 100) [complexity: 2 - low]: "Get concepts in a specific category"
+    def get_top_concepts(self, limit: int = 20) [complexity: 2 - low]: "Get the most referenced concepts"
+    def get_related_concepts(self, concept_id: int) [complexity: 3 - low]: "Get concepts related to a specific concept"
+    def get_content_with_concept(self, concept_id: int, limit: int = 10) [complexity: 2 - low]: "Get content items that contain a specific concept"
+
+class RelationshipQuery: "Query and analyze concept relationships in the knowledge graph"
+    def __init__(self, db_path: str = None) [complexity: 2 - low]: "Initialize with database connection"
+    def get_connection(self) [complexity: 1 - low]: "Get a database connection"
+    def get_relationship_types(self) [complexity: 2 - low]: "Get all distinct relationship types"
+    def get_relationships_by_type(self, rel_type: str, limit: int = 100) [complexity: 2 - low]: "Get relationships of a specific type"
+    def get_relationship(self, source_id: int, target_id: int, rel_type: str = None) [complexity: 3 - low]: "Get a specific relationship between two concepts"
+    def get_all_relationships(self, min_confidence: float = 0.5, limit: int = 1000) [complexity: 2 - low]: "Get all relationships with a minimum confidence score"
+
+class KnowledgeGraph: "Build and analyze a NetworkX graph from concept data"
+    def __init__(self, db_path: str = None) [complexity: 3 - low]: "Initialize knowledge graph builder"
+    def build_graph(self, min_confidence: float = 0.5, min_references: int = 1, include_categories = None, exclude_categories = None, relationship_types = None) [complexity: 8 - medium]: "Build a NetworkX directed graph from concept relationships"
+    def get_central_concepts(self, limit: int = 10, centrality_type: str = degree) [complexity: 8 - medium]: "Get the most central concepts in the graph"
+    def get_concept_communities(self, algorithm: str = louvain) [complexity: 6 - medium]: "Detect communities/clusters of concepts"
+    def _label_propagation_communities(self) [complexity: 3 - low]: "Use label propagation for community detection"
+    def _clique_communities(self) [complexity: 5 - low]: "Use clique percolation for community detection"
+    def get_community_summary(self, communities, min_community_size: int = 3) [complexity: 10 - medium]: "Generate summary of community contents"
+    def find_paths_between_concepts(self, source_id: int, target_id: int, max_paths: int = 3) [complexity: 10 - medium]: "Find paths between two concepts in the graph"
+    def get_concept_neighborhood(self, concept_id: int, max_distance: int = 2) [complexity: 5 - low]: "Get a subgraph of concepts around a given concept"
+    def analyze_concept(self, concept_id: int) [complexity: 8 - medium]: "Perform comprehensive analysis of a concept"
+
+class GraphVisualizer: "Visualize the knowledge graph in various formats"
+    def __init__(self, graph = None, output_dir: str = visualizations) [complexity: 2 - low]: "Initialize the visualizer"
+    def set_graph(self, graph) [complexity: 1 - low]: "Set the graph to visualize"
+    def visualize_with_matplotlib(self, output_file: str = knowledge_graph.png, layout: str = spring, node_size_by: str = reference_count, edge_width_by: str = confidence, show_labels: bool = True, label_font_size: int = 8) [complexity: 20 - high]: "Create a static visualization using matplotlib"
+    def visualize_interactive(self, output_file: str = knowledge_graph.html, layout: str = force, node_size_by: str = reference_count, edge_width_by: str = confidence, show_communities: bool = False, communities = None) [complexity: 24 - high]: "Create an interactive HTML visualization using Plotly"
+    def export_to_gexf(self, output_file: str = knowledge_graph.gexf) [complexity: 2 - low]: "Export graph to GEXF format for use in Gephi"
+    def export_to_json(self, output_file: str = knowledge_graph.json) [complexity: 6 - medium]: "Export graph to JSON format"
+    def visualize_concept_neighborhood(self, concept_id: int, output_file: str = None, max_distance: int = 2, interactive: bool = True) [complexity: 6 - medium]: "Visualize a specific concept and its neighborhood"
+
+class KnowledgeGraphManager: "Manage and integrate knowledge graph operations"
+    def __init__(self, db_path: str = None) [complexity: 3 - low]: "Initialize the knowledge graph manager"
+    def check_concepts_available(self) [complexity: 4 - low]: "Check if concepts are available in the database"
+    def build_graph(self) [complexity: 4 - low]: "Build the knowledge graph with the given parameters"
+    def generate_visualizations(self, output_dir: str = visualizations) [complexity: 8 - medium]: "Generate standard set of visualizations"
+    def search_and_visualize(self, search_term: str, output_dir: str = visualizations) [complexity: 10 - medium]: "Search for concepts and visualize the neighborhood"
+    def get_concept_report(self, concept_id: int) [complexity: 8 - medium]: "Generate a comprehensive report for a specific concept"
+    def get_knowledge_graph_stats(self) [complexity: 15 - high]: "Get statistics about the knowledge graph"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/llm_integration.py
+================================================================================
+
+# Key imports:
+# import os
+# import sys
+# import logging
+# import json
+# import time
+# ... and 2 more imports
+
+# Functions:
+def main() [complexity: 7 - medium]: "Main function for direct script execution"
+def __init__(self) [complexity: 1 - low]
+def generate(self, prompt: str, max_tokens: int = ..., temperature: float = ...) [complexity: 1 - low]: "Generate text from prompt"
+def generate_streaming(self, prompt: str, max_tokens: int = ..., temperature: float = ...) [complexity: 1 - low]: "Generate text from prompt with streaming response"
+def __init__(self, api_key = None, model: str = ..., max_retries: int = 3, retry_delay: int = 5) [complexity: 4 - low]: "Initialize Claude provider"
+def generate(self, prompt: str, max_tokens: int = ..., temperature: float = ...) [complexity: 4 - low]: "Generate text from prompt using Claude"
+def generate_streaming(self, prompt: str, max_tokens: int = ..., temperature: float = ...) [complexity: 5 - low]: "Generate text from prompt with streaming response"
+def __init__(self, llm_provider = None, context_builder = None, max_tokens_answer: int = ..., max_tokens_context: int = 4000, temperature: float = 0.5) [complexity: 4 - low]: "Initialize RAG assistant"
+def answer_query(self, query: str, search_type: str = hybrid, vector_weight = None, keyword_weight = None, source_type = None, top_k: int = 10, temperature = None) [complexity: 2 - low]: "Answer a user query using RAG"
+def answer_query_streaming(self, query: str, callback = None, search_type: str = hybrid, vector_weight = None, keyword_weight = None, source_type = None, top_k: int = 10, temperature = None) [complexity: 4 - low]: "Answer a user query using RAG with streaming response"
+def save_response(self, response, filename = None) [complexity: 2 - low]: "Save response to file"
+def print_chunk(chunk) [complexity: 1 - low]
+
+# Classes:
+class LLMProvider: "Base class for LLM providers"
+    def __init__(self) [complexity: 1 - low]
+    def generate(self, prompt: str, max_tokens: int = ..., temperature: float = ...) [complexity: 1 - low]: "Generate text from prompt"
+    def generate_streaming(self, prompt: str, max_tokens: int = ..., temperature: float = ...) [complexity: 1 - low]: "Generate text from prompt with streaming response"
+
+class ClaudeProvider(LLMProvider): "Provider for Anthropic's Claude models"
+    def __init__(self, api_key = None, model: str = ..., max_retries: int = 3, retry_delay: int = 5) [complexity: 4 - low]: "Initialize Claude provider"
+    def generate(self, prompt: str, max_tokens: int = ..., temperature: float = ...) [complexity: 4 - low]: "Generate text from prompt using Claude"
+    def generate_streaming(self, prompt: str, max_tokens: int = ..., temperature: float = ...) [complexity: 5 - low]: "Generate text from prompt with streaming response"
+
+class RAGAssistant: "RAG-powered assistant that combines context building with LLM generation"
+    def __init__(self, llm_provider = None, context_builder = None, max_tokens_answer: int = ..., max_tokens_context: int = 4000, temperature: float = 0.5) [complexity: 4 - low]: "Initialize RAG assistant"
+    def answer_query(self, query: str, search_type: str = hybrid, vector_weight = None, keyword_weight = None, source_type = None, top_k: int = 10, temperature = None) [complexity: 2 - low]: "Answer a user query using RAG"
+    def answer_query_streaming(self, query: str, callback = None, search_type: str = hybrid, vector_weight = None, keyword_weight = None, source_type = None, top_k: int = 10, temperature = None) [complexity: 4 - low]: "Answer a user query using RAG with streaming response"
+    def save_response(self, response, filename = None) [complexity: 2 - low]: "Save response to file"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/mistral_ocr.py
+================================================================================
+
+# Key imports:
+# import os
+# import base64
+# import logging
+# import time
+# import re
+# ... and 3 more imports
+
+# Functions:
+def get_mistral_ocr() [complexity: 5 - low]: "Create and return a MistralOCR instance if dependencies are available"
+def extract_text_from_pdf_with_mistral(pdf_path, model = mistral-large-pdf, api_key = None, max_retries = 3, sleep_time = 2) [complexity: 9 - medium]: "Extract text from a PDF file using Mistral OCR"
+def process_large_pdf(pdf_path, model, api_key, max_retries = 3, sleep_time = 2) [complexity: 8 - medium]: "Process a large PDF by extracting text page by page"
+def extract_text(pdf_path: str, api_key: str, model: str = mistral-large-pdf) [complexity: 3 - low]: "Extract text from a PDF file using Mistral OCR API"
+def __init__(self, api_key = None, model = None) [complexity: 10 - medium]: "Initialize MistralOCR"
+def extract_text_from_pdf(self, pdf_path: str) [complexity: 3 - low]: "Extract text from a PDF file using Mistral AI's OCR API"
+def _extract_text_with_direct_method(self, pdf_path: str) [complexity: 2 - low]: "Extract text using direct base64 encoding (for smaller PDFs)"
+def _extract_text_with_file_upload(self, pdf_path: str) [complexity: 2 - low]: "Extract text using file upload approach (for larger PDFs)"
+def _process_ocr_response(self, ocr_response, pdf_path: str) [complexity: 8 - medium]: "Process OCR response to extract text and title"
+def extract_text_with_fallback(self, pdf_path: str) [complexity: 2 - low]: "Extract text from PDF with fallback to chat API if OCR API fails"
+def extract_text_using_chat_api(self, pdf_path: str) [complexity: 3 - low]: "Fallback method to extract text using the chat API"
+def extract_text(self, pdf_path: str, api_key: str = None, model: str = None) [complexity: 4 - low]: "Extract text from a PDF file using Mistral OCR API"
+
+# Classes:
+class MistralOCR: "Class for extracting text from PDFs using Mistral AI's OCR API"
+    def __init__(self, api_key = None, model = None) [complexity: 10 - medium]: "Initialize MistralOCR"
+    def extract_text_from_pdf(self, pdf_path: str) [complexity: 3 - low]: "Extract text from a PDF file using Mistral AI's OCR API"
+    def _extract_text_with_direct_method(self, pdf_path: str) [complexity: 2 - low]: "Extract text using direct base64 encoding (for smaller PDFs)"
+    def _extract_text_with_file_upload(self, pdf_path: str) [complexity: 2 - low]: "Extract text using file upload approach (for larger PDFs)"
+    def _process_ocr_response(self, ocr_response, pdf_path: str) [complexity: 8 - medium]: "Process OCR response to extract text and title"
+    def extract_text_with_fallback(self, pdf_path: str) [complexity: 2 - low]: "Extract text from PDF with fallback to chat API if OCR API fails"
+    def extract_text_using_chat_api(self, pdf_path: str) [complexity: 3 - low]: "Fallback method to extract text using the chat API"
+    def extract_text(self, pdf_path: str, api_key: str = None, model: str = None) [complexity: 4 - low]: "Extract text from a PDF file using Mistral OCR API"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/run.py
+================================================================================
+
+# Key imports:
+# import os
+# import argparse
+# import logging
+# from time import time
+import sqlite3
+
+# Import our modules
+from config import DATA_DIR
+import config
+import downloader
+import transcriber
+import indexer
+import summarizer
+from app import app
+
+# Import the new modules
+try:
+    import db_migration
+    has_db_migration = True
+except ImportError:
+    has_db_migration = False
+
+try:
+    import github_collector
+except ImportError as e:
+    github_collector_error = str(e)
+    github_collector = None
+
+try:
+    import arxiv_collector
+except ImportError as e:
+    arxiv_collector_error = str(e)
+    arxiv_collector = None
+
+try:
+    import concept_extractor
+    import chunking
+    import embeddings
+    import generate_embeddings
+    import vector_search
+    import hybrid_search
+    import context_builder
+    import llm_integration
+    has_vector_search = True
+    has_rag = True
+except ImportError as e:
+    has_vector_search = False
+    has_rag = False
+    import_error = str(e)
+    missing_module = str(e).split("No module named ")[-1].strip("'")
+    import sys
+    print(f"Current sys.path: {sys.path}")
+    import traceback
+    print(f"Traceback: {traceback.format_exc()}")
+
+# Try to import knowledge graph module
+try:
+    import knowledge_graph
+    has_knowledge_graph = True
+except ImportError:
+    has_knowledge_graph = False
+
+# Try to import evaluation modules
+try:
+    from evaluation import dashboard
+    from evaluation.test_runner import RAGTestRunner
+    has_evaluation = True
+except ImportError:
+    has_evaluation = False
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('instagram_kb.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger('main')
+
+def setup():
+    """Setup necessary directories"""
+    os.makedirs(DATA_DIR, exist_ok=True)
+    os.makedirs('logs', exist_ok=True)
+
+def run_downloader(force_refresh=False, use_auth=True):
+    """Run the Instagram downloader"""
+    logger.info("Starting Instagram content download")
+    start_time = time()
+    downloader.download_from_instagram(force_refresh=force_refresh, use_auth=use_auth)
+    logger.info(f"Download completed in {time() - start_time:.2f} seconds")
+
+def run_transcriber(batch_size=16, extraction_workers=4, auto_batch_size=True):
+    """Run the audio extraction and transcription"""
+    logger.info("Starting audio extraction and transcription")
+    start_time = time()
+    transcriber.process_videos(
+        batch_size=batch_size,
+        extraction_workers=extraction_workers,
+        auto_batch_size=auto_batch_size
+    )
+    logger.info(f"Transcription completed in {time() - start_time:.2f} seconds")
+
+def run_summarizer():
+    """Run the transcript summarization using Claude"""
+    logger.info("Starting transcript summarization using Claude")
+    start_time = time()
+    if args.no_batch:
+        logger.info("Batch processing disabled, using sequential processing")
+        summarizer.summarize_transcripts(use_batch_api=False)
+    else:
+        logger.info("Using batch processing with Claude API for cost savings (50% cheaper)")
+        summarizer.summarize_transcripts(use_batch_api=True)
+    logger.info(f"Summarization completed in {time() - start_time:.2f} seconds")
+
+def run_indexer():
+    """Run the knowledge base indexer"""
+    logger.info("Starting indexing of transcripts")
+    start_time = time()
+    indexer.index_transcripts()
+    logger.info(f"Indexing completed in {time() - start_time:.2f} seconds")
+
+def run_web_interface(port=5000, debug=False):
+    """Run the web interface with API endpoints"""
+    from app import app
+    
+    # The app module already registers all available blueprints when imported
+    # So we don't need to register them again, just run the app
+    logger.info(f"Starting web interface on port {port}, debug={debug}")
+    logger.info(f"Registered blueprints: {list(app.blueprints.keys())}")
+    
+    # Run the app
+    app.run(host='0.0.0.0', port=port, debug=debug)
+
+def run_db_migration():
+    """Run database migration to support multiple content sources"""
+    if not has_vector_search:
+        logger.error("Database migration module not available")
+        return
+    
+    logger.info("Starting database migration")
+    start_time = time()
+    success = db_migration.migrate_database()
+    
+    if success:
+        logger.info(f"Database migration completed in {time() - start_time:.2f} seconds")
+    else:
+        logger.error(f"Database migration failed after {time() - start_time:.2f} seconds")
+
+def run_github_collector(max_repos=None):
+    """Run GitHub repository collection"""
+    if not has_vector_search:
+        logger.error("GitHub collector module not available")
+        return
+    
+    logger.info("Starting GitHub repository collection")
+    start_time = time()
+    success_count = github_collector.collect_github_repos(max_repos=max_repos)
+    logger.info(f"GitHub collection completed in {time() - start_time:.2f} seconds, processed {success_count} repositories")
+
+def run_papers_collector(args):
+    try:
+        import arxiv_collector
+        
+        if arxiv_collector is None:
+            logger.error("ArXiv collector module is not available")
+            return
+            
+        if args.paper_url:
+            logger.info(f"Downloading paper from URL: {args.paper_url}")
+            arxiv_collector.download_paper_from_url(args.paper_url)
+        elif args.download_papers:
+            logger.info(f"Downloading up to {args.max_papers} papers without processing")
+            arxiv_collector.download_papers_only(max_papers=args.max_papers)
+        elif args.process_papers:
+            logger.info(f"Processing previously downloaded papers (max: {args.max_papers})")
+            arxiv_collector.batch_process_pdfs(max_papers=args.max_papers)
+        else:
+            logger.info(f"Collecting up to {args.max_papers} papers")
+            arxiv_collector.collect_papers(max_papers=args.max_papers)
+    except Exception as e:
+        logger.error(f"Failed to run ArXiv collector: {e}")
+        import traceback
+        traceback.print_exc()
+
+def run_concept_extractor(limit=None, source_type=None, batch=False, batch_size=5, force=False):
+    """Run concept extraction on content"""
+    if not has_vector_search:
+        logger.error("Concept extractor module not available")
+        return
+    
+    logger.info("Starting concept extraction")
+    start_time = time()
+    
+    if batch:
+        logger.info(f"Processing content in batch mode with batch size {batch_size}")
+        processed = concept_extractor.process_in_batches(batch_size=batch_size, force=force)
+        logger.info(f"Batch processing completed. Processed {processed} items.")
+        return processed
+    
+    if source_type:
+        logger.info(f"Processing {limit or 'all'} items from source type: {source_type}")
+        processed = concept_extractor.process_unprocessed_content(limit=limit or 5, source_type=source_type, force=force)
+        logger.info(f"Processed {processed} items from {source_type}")
+    else:
+        # Process some content from each source type
+        total_processed = 0
+        for src_type in ["research_paper", "github", "instagram"]:
+            logger.info(f"Processing source type: {src_type}")
+            processed = concept_extractor.process_unprocessed_content(limit=limit or 3, source_type=src_type, force=force)
+            logger.info(f"Processed {processed} items from {src_type}")
+            total_processed += processed
+        
+        logger.info(f"Concept extraction completed in {time() - start_time:.2f} seconds, processed {total_processed} items")
+
+def run_embedding_generation(source_type=None, limit=None, batch_size=50, 
+                           chunk_size=500, chunk_overlap=100, force=False):
+    """Generate embeddings for content"""
+    if not has_vector_search:
+        logger.error(f"Vector search modules not available: {import_error}")
+        return
+    
+    logger.info("Starting embedding generation")
+    start_time = time()
+    
+    args = []
+    if source_type:
+        args.extend(["--source-type", source_type])
+    
+    if limit:
+        args.extend(["--limit", str(limit)])
+    
+    if batch_size:
+        args.extend(["--batch-size", str(batch_size)])
+    
+    if chunk_size:
+        args.extend(["--chunk-size", str(chunk_size)])
+    
+    if chunk_overlap:
+        args.extend(["--chunk-overlap", str(chunk_overlap)])
+    
+    if force:
+        args.append("--force")
+    
+    # Run embedding generator script
+    import sys
+
+# Blueprint registrations:
+app.register_blueprint(evaluation_bp, url_prefix='/evaluation')
+
+# Flask routes:
+@app.route('/', methods=[GET])
+def redirect_to_evaluation(): ""
+
+# Functions:
+def setup() [complexity: 1 - low]: "Setup necessary directories"
+def run_downloader(force_refresh = False, use_auth = True) [complexity: 1 - low]: "Run the Instagram downloader"
+def run_transcriber(batch_size = 16, extraction_workers = 4, auto_batch_size = True) [complexity: 1 - low]: "Run the audio extraction and transcription"
+def run_summarizer() [complexity: 2 - low]: "Run the transcript summarization using Claude"
+def run_indexer() [complexity: 1 - low]: "Run the knowledge base indexer"
+def run_web_interface(port = 5000, debug = False) [complexity: 1 - low]: "Run the web interface with API endpoints"
+def run_db_migration() [complexity: 3 - low]: "Run database migration to support multiple content sources"
+def run_github_collector(max_repos = None) [complexity: 2 - low]: "Run GitHub repository collection"
+def run_papers_collector(args) [complexity: 6 - medium]
+def run_concept_extractor(limit = None, source_type = None, batch = False, batch_size = 5, force = False) [complexity: 8 - medium]: "Run concept extraction on content"
+def run_embedding_generation(source_type = None, limit = None, batch_size = 50, chunk_size = 500, chunk_overlap = 100, force = False) [complexity: 9 - medium]: "Generate embeddings for content"
+def run_vector_search(query, top_k = 5, source_type = None, in_memory_index = False) [complexity: 8 - medium]: "Run vector search for a query"
+def run_hybrid_search(query, top_k = 5, source_type = None, vector_weight = None, keyword_weight = None, adaptive = True) [complexity: 18 - high]: "Run hybrid search for a query"
+def run_rag_query(query, search_type = hybrid, source_type = None, top_k = 5, vector_weight = None, keyword_weight = None, max_tokens_context = 4000, max_tokens_answer = 1000, temperature = 0.5, model = None, stream = False) [complexity: 8 - medium]: "Run a RAG query and get a response from the LLM"
+def run_evaluation_dashboard(port = 5050, debug = False) [complexity: 2 - low]: "Run the evaluation dashboard"
+def run_create_test_dataset(concept_queries = 15, content_queries = 10) [complexity: 2 - low]: "Create a test dataset for RAG evaluation"
+def run_evaluation_tests(dataset_id, search_type = hybrid, top_k = 10, vector_weight = 0.7, keyword_weight = 0.3) [complexity: 2 - low]: "Run retrieval tests on a test dataset"
+def run_answer_tests(dataset_id, search_type = hybrid, top_k = 5, vector_weight = 0.7, keyword_weight = 0.3, max_queries = 10) [complexity: 2 - low]: "Run answer quality tests on a test dataset"
+def parse_args() [complexity: 1 - low]: "Parse command line arguments"
+def main() [complexity: 13 - high]: "Main function to parse arguments and run the system"
+def print_chunk(chunk) [complexity: 1 - low]
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/summarizer.py
+================================================================================
+
+# Key imports:
+# import os
+# import json
+# import time
+# import sqlite3
+# import logging
+# ... and 3 more imports
+
+# Functions:
+def get_video_metadata(shortcode, conn) [complexity: 2 - low]: "Fetch metadata for a video from the database"
+def analyze_content_quality(transcript) [complexity: 4 - low]: "Calculate metrics about content quality"
+def process_transcripts_with_claude(batch_size = 25, delay_between_batches = 5, use_batch_api = True) [complexity: 12 - high]: "Process transcripts in batches using Claude API"
+def summarize_transcripts(use_batch_api = True) [complexity: 1 - low]: "Main entry point for transcript summarization"
+def __init__(self, api_key = None) [complexity: 2 - low]: "Initialize the Claude summarizer with API key"
+def _load_cache(self) [complexity: 2 - low]: "Load summary cache from file"
+def _save_cache(self) [complexity: 1 - low]: "Save summary cache to file"
+def _create_enhanced_prompt(self, transcript, metadata = None) [complexity: 4 - low]: "Create an enhanced prompt for Claude with context about the video"
+def _extract_key_phrases(self, transcript, summary) [complexity: 15 - high]: "Extract key phrases and terms from transcript and summary"
+def _parse_structured_summary(self, claude_response) [complexity: 12 - high]: "Parse Claude's structured response into components"
+def summarize(self, transcript, shortcode, metadata = None, max_retries = 3) [complexity: 10 - medium]: "Generate a summary using Claude API with retry logic"
+def process_batch(self, transcript_data, max_batch_size = 100, model = claude-3-haiku-20240307) [complexity: 17 - high]: "Process multiple transcripts as a batch using the Message Batches API."
+
+# Classes:
+class ClaudeSummarizer
+    def __init__(self, api_key = None) [complexity: 2 - low]: "Initialize the Claude summarizer with API key"
+    def _load_cache(self) [complexity: 2 - low]: "Load summary cache from file"
+    def _save_cache(self) [complexity: 1 - low]: "Save summary cache to file"
+    def _create_enhanced_prompt(self, transcript, metadata = None) [complexity: 4 - low]: "Create an enhanced prompt for Claude with context about the video"
+    def _extract_key_phrases(self, transcript, summary) [complexity: 15 - high]: "Extract key phrases and terms from transcript and summary"
+    def _parse_structured_summary(self, claude_response) [complexity: 12 - high]: "Parse Claude's structured response into components"
+    def summarize(self, transcript, shortcode, metadata = None, max_retries = 3) [complexity: 10 - medium]: "Generate a summary using Claude API with retry logic"
+    def process_batch(self, transcript_data, max_batch_size = 100, model = claude-3-haiku-20240307) [complexity: 17 - high]: "Process multiple transcripts as a batch using the Message Batches API."
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/test_db.py
+================================================================================
+
+# Key imports:
+# import sqlite3
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/test_proxy.py
+================================================================================
+
+# Key imports:
+# import sys
+# import requests
+# import os
+# import json
+# from datetime import datetime
+# ... and 1 more imports
+
+# Functions:
+def test_brightdata_proxy() [complexity: 4 - low]: "Test Bright Data residential proxy"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/test_vector_search.py
+================================================================================
+
+# Key imports:
+# import os
+# import sys
+# import argparse
+# import logging
+# import time
+# ... and 1 more imports
+
+# Functions:
+def test_vector_search(queries, top_k: int = 5, source_type = None, in_memory_index: bool = False) [complexity: 6 - medium]: "Run vector search tests for the provided queries"
+def test_keyword_search(queries, top_k: int = 5, source_type = None) [complexity: 2 - low]: "Run keyword search tests for the provided queries"
+def test_hybrid_search(queries, top_k: int = 5, source_type = None, vector_weight = None, keyword_weight = None, adaptive: bool = True) [complexity: 11 - high]: "Run hybrid search tests for the provided queries"
+def compare_search_methods(queries, top_k: int = 5, source_type = None) [complexity: 8 - medium]: "Compare vector, keyword, and hybrid search for the provided queries"
+def print_results(results, detailed: bool = False) [complexity: 14 - high]: "Print search results"
+def print_comparison(comparison) [complexity: 2 - low]: "Print comparison results between search methods"
+def main() [complexity: 13 - high]: "Main function"
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/transcriber.py
+================================================================================
+
+# Key imports:
+# import os
+# import json
+# import glob
+# import subprocess
+# import logging
+# ... and 4 more imports
+
+# Functions:
+def setup_directories() [complexity: 3 - low]: "Create necessary directories if they don't exist"
+def extract_audio(video_path, audio_path) [complexity: 6 - medium]: "Extract audio from video using FFmpeg"
+def extract_audio_batch(video_audio_pairs, max_workers: int = 4) [complexity: 10 - medium]: "Extract audio from multiple videos in parallel"
+def transcribe_batch(model, audio_paths, account_map, base_name_map, metadata_map, batch_size: int = 16) [complexity: 12 - high]: "Transcribe a batch of audio files"
+def get_metadata(download_dir: str, account: str, base_name: str) [complexity: 3 - low]: "Get metadata if available"
+def process_videos(batch_size: int = 16, extraction_workers: int = 4, auto_batch_size: bool = True) [complexity: 24 - high]: "Process all downloaded videos that haven't been transcribed yet, using batch processing"
+def signal_handler(sig, frame) [complexity: 2 - low]: "Handle interrupt signals gracefully"
+def estimate_optimal_batch_size(vram_gb = 8, video_count = 0, avg_duration = 60) [complexity: 2 - low]: "Estimate optimal batch size based on available VRAM and video characteristics"
+def process_pair(pair) [complexity: 3 - low]
+
+
+
+================================================================================
+# FILE: Instagram-Scraper/vector_search.py
+================================================================================
+
+# Key imports:
+# import os
+# import logging
+# import sqlite3
+# import pickle
+# import time
+# ... and 1 more imports
+
+# Functions:
+def cosine_similarity(vec1, vec2) [complexity: 4 - low]: "Calculate cosine similarity between two vectors"
+def vector_search(query_embedding, top_k: int = 5, source_type = None) [complexity: 8 - medium]: "Search for similar content using vector embeddings"
+def search_by_text(query_text: str, top_k: int = 5, source_type = None, embedding_generator = None) [complexity: 3 - low]: "Search for content similar to the query text"
+def enrich_search_results(results) [complexity: 11 - high]: "Enrich search results with additional metadata from the database"
+def create_memory_index() [complexity: 7 - medium]: "Create an in-memory index of all embeddings for faster search"
+def search_memory_index(query_embedding, index, top_k: int = 5) [complexity: 5 - low]: "Search the in-memory index for similar embeddings"
+def debug_search(query_text: str, top_k: int = 5) [complexity: 4 - low]: "Debug function to test and display search results"
+def main() [complexity: 4 - low]: "Main function for direct script execution"
+

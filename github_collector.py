@@ -8,12 +8,23 @@ import logging
 import time
 import base64
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timezone
 import requests
 from urllib.parse import urlparse
 import random
+import hashlib
+import argparse
+import shutil
+import sys
+import getpass
+import re
 
+# Add the Instagram-Scraper directory to the path
+sys.path.append('/home/adi235/MistralOCR/Instagram-Scraper')
 from config import DATA_DIR, DB_PATH, PROXY_SERVERS
+
+# Set filesystem storage path
+FS_STORAGE_PATH = "/home/adi235/MistralOCR/Instagram-Scraper/data/github"
 
 # Configure logging
 logging.basicConfig(
@@ -51,10 +62,70 @@ GITHUB_REPOS = [
     {"repo": "microsoft/ML-For-Beginners", "resource_type": "tutorial", "priority": "medium"},
 ]
 
-def setup_directories():
+# Define valuable file types and directories
+VALUABLE_FILE_TYPES = [
+    ".md", ".rst", ".txt", ".ipynb", ".py", # Documentation and code
+    ".yaml", ".yml", ".json", # Configuration
+    ".html", ".css", ".js", # Web content
+]
+
+# Prioritized directories - order matters for value scoring
+VALUABLE_DIRECTORIES = [
+    "docs", 
+    "documentation", 
+    "doc",
+    "examples", 
+    "tutorials", 
+    "guides",
+    "notebooks"
+]
+
+# Constants for directories to skip
+SKIP_DIRECTORIES = [
+    "test", 
+    "tests", 
+    "testing",
+    "node_modules", 
+    ".git", 
+    ".github",
+    "build", 
+    "dist", 
+    "venv",
+    "__pycache__",
+    "assets"
+]
+
+# Constants for file extensions to skip
+SKIP_EXTENSIONS = [
+    "pyc", "pyo", "pyd",
+    "exe", "bin", "so", "dll",
+    "obj", "o", "a", "lib",
+    "jar", "war", "ear",
+    "zip", "tar", "gz", "bz2", "rar",
+    "jpg", "jpeg", "png", "gif", "bmp", "ico", "svg",
+    "mp3", "mp4", "wav", "avi", "mov", "flv",
+    "db", "sqlite", "sqlite3",
+    "log", "tmp", "temp",
+    "swp", "swo", "bak"
+]
+
+# Files that often contain valuable content
+HIGH_VALUE_FILES = [
+    "README", "readme", "README.md", "readme.md", # Repository documentation
+    "ARCHITECTURE", "architecture.md", "DESIGN", "design.md", # Design documents
+    "CONTRIBUTING.md", "contributing.md", # Contribution guidelines often contain architectural info
+    "setup.py", "requirements.txt", # Project setup
+    "config.yml", "config.yaml", "config.json", # Configuration examples
+]
+
+MAX_FILE_SIZE = 1 * 1024 * 1024  # 1MB limit for files
+
+def setup_directories(clean=False):
     """Create necessary directories"""
-    os.makedirs(os.path.join(DATA_DIR, 'github'), exist_ok=True)
-    os.makedirs(os.path.join(DATA_DIR, 'logs'), exist_ok=True)
+    if clean:
+        shutil.rmtree(FS_STORAGE_PATH, ignore_errors=True)
+    os.makedirs(FS_STORAGE_PATH, exist_ok=True)
+    logger.info(f"Ensured directory structure at {FS_STORAGE_PATH}")
 
 def get_proxy():
     """Get a random proxy from the configured proxies"""
@@ -86,18 +157,41 @@ def get_proxy():
         logger.error(f"Error setting up proxy: {str(e)}")
         return None
 
-def get_github_api_client(token=None):
+def get_github_api_client(token=None, prompt_for_token=True, bypass_proxy=False):
     """
     Create a GitHub API client session
     
-    If token is provided, use it for authentication
-    Otherwise try to use the GITHUB_TOKEN environment variable
+    Args:
+        token: GitHub API token
+        prompt_for_token: Whether to prompt for a token if not provided
+        bypass_proxy: Whether to bypass the proxy configuration
+        
+    Returns:
+        Requests session configured for GitHub API
     """
     if not token:
         token = os.environ.get('GITHUB_TOKEN')
     
-    if not token:
-        logger.warning("No GitHub token provided. API rate limits will be severely restricted.")
+    # If token still not available and prompting is enabled, ask the user
+    if not token and prompt_for_token:
+        print("\nNo GitHub token found. Using GitHub API without a token limits you to 60 requests/hour.")
+        print("With a Personal Access Token (PAT), this increases to 5,000 requests/hour.")
+        print("To create a token, go to: https://github.com/settings/tokens")
+        print("You need at least 'public_repo' and 'read:packages' scopes.")
+        use_token = input("Would you like to provide a GitHub token? (y/n): ").lower().strip() == 'y'
+        
+        if use_token:
+            token = getpass.getpass("Enter your GitHub Personal Access Token: ")
+            # Save to environment variable for this session
+            os.environ['GITHUB_TOKEN'] = token
+            print("Token saved for this session.")
+    
+    has_token = token is not None and token.strip() != ""
+    
+    if not has_token:
+        logger.warning("No GitHub token provided. API rate limits will be severely restricted (60 requests/hour).")
+    else:
+        logger.info("Using GitHub authentication. Rate limit: 5,000 requests/hour.")
     
     session = requests.Session()
     session.headers.update({
@@ -105,15 +199,98 @@ def get_github_api_client(token=None):
         'User-Agent': 'AI-Knowledge-Base-Collector/1.0'
     })
     
-    if token:
+    if has_token:
+        # GitHub API accepts both formats, but "token" prefix is more widely used
         session.headers.update({'Authorization': f'token {token}'})
     
-    # Set up proxy if available
-    proxies = get_proxy()
-    if proxies:
-        session.proxies.update(proxies)
+    # Set up proxy if available and not bypassed
+    if not bypass_proxy:
+        proxies = get_proxy()
+        if proxies:
+            session.proxies.update(proxies)
+            # Disable SSL verification when using proxy (for testing purposes only)
+            session.verify = False
+            # Suppress InsecureRequestWarning
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+            logger.warning("SSL verification disabled while using proxy (for testing only)")
+    
+    # Test the token and check rate limit
+    try:
+        response = session.get("https://api.github.com/rate_limit")
+        if response.status_code == 200:
+            rate_data = response.json()
+            core_rate = rate_data.get('resources', {}).get('core', {})
+            remaining = core_rate.get('remaining', 0)
+            limit = core_rate.get('limit', 0)
+            reset_time = core_rate.get('reset', 0)
+            reset_datetime = datetime.fromtimestamp(reset_time).strftime('%H:%M:%S')
+            
+            logger.info(f"GitHub API rate limit: {remaining}/{limit} requests remaining, resets at {reset_datetime}")
+            
+            if remaining < 10:
+                logger.warning(f"GitHub API rate limit nearly exhausted! Only {remaining} requests remaining.")
+                logger.warning(f"Rate limit will reset at {reset_datetime}.")
+                if has_token:
+                    logger.warning("Check if your token has the correct permissions.")
+                else:
+                    logger.warning("Consider using a GitHub token to increase your rate limit.")
+        else:
+            logger.warning(f"Rate limit check failed: {response.status_code} - {response.text}")
+            if has_token:
+                logger.warning("Check if your token is valid and has the correct format")
+    except Exception as e:
+        logger.warning(f"Could not check rate limit: {str(e)}")
     
     return session
+
+def handle_rate_limit(response, token_provided=False):
+    """
+    Handle GitHub API rate limiting
+    
+    Args:
+        response: Response object from GitHub API
+        token_provided: Whether a token was provided (affects wait time decisions)
+        
+    Returns:
+        True if rate limited and handled, False otherwise
+    """
+    if response.status_code == 403 and 'rate limit' in response.text.lower():
+        reset_time = int(response.headers.get('X-RateLimit-Reset', 0))
+        current_time = time.time()
+        wait_time = max(reset_time - current_time, 0) + 10
+        
+        reset_datetime = datetime.fromtimestamp(reset_time).strftime('%Y-%m-%d %H:%M:%S')
+        logger.warning(f"Rate limit exceeded! Limit will reset at {reset_datetime}")
+        
+        # If using a PAT, we're more lenient with long wait times
+        max_wait = 7200 if token_provided else 3600  # 2 hours with token, 1 hour without
+        
+        if wait_time > max_wait:
+            logger.error(f"Rate limit reset time is too long ({wait_time:.0f} seconds). Maximum wait time is {max_wait} seconds.")
+            return False
+        
+        logger.warning(f"Waiting for {wait_time:.0f} seconds for rate limit to reset.")
+        
+        # Wait with progress indicators
+        wait_start = time.time()
+        wait_end = wait_start + wait_time
+        
+        try:
+            while time.time() < wait_end:
+                elapsed = time.time() - wait_start
+                percent = min(100, (elapsed / wait_time) * 100)
+                sys.stdout.write(f"\rWaiting for rate limit reset: {percent:.1f}% complete...")
+                sys.stdout.flush()
+                time.sleep(5)
+            
+            print("\nRate limit wait completed. Continuing...")
+            return True
+        except KeyboardInterrupt:
+            print("\nWait interrupted by user.")
+            return False
+    
+    return False
 
 def collect_repo_info(session, repo_name):
     """
@@ -131,11 +308,26 @@ def collect_repo_info(session, repo_name):
     try:
         # Get repository information
         response = session.get(f"https://api.github.com/repos/{repo_name}")
+        
+        # Check if token is being used
+        token_provided = 'Authorization' in session.headers
+        
+        # Handle rate limiting
+        if handle_rate_limit(response, token_provided):
+            # Retry the request after waiting for rate limit reset
+            response = session.get(f"https://api.github.com/repos/{repo_name}")
+        
         response.raise_for_status()
         repo_data = response.json()
         
         # Get topics
         topics_response = session.get(f"https://api.github.com/repos/{repo_name}/topics")
+        
+        # Handle rate limiting for topics request
+        if handle_rate_limit(topics_response, token_provided):
+            # Retry the request after waiting for rate limit reset
+            topics_response = session.get(f"https://api.github.com/repos/{repo_name}/topics")
+            
         topics_response.raise_for_status()
         topics = topics_response.json().get('names', [])
         
@@ -264,13 +456,91 @@ def process_readme_content(content, repo_name):
     
     return header + processed_content
 
-def store_repo_in_db(repo_info, readme_content):
+def store_repo_files(repo_info, readme_content, valuable_files=None):
     """
-    Store repository information in the database
+    Store repository information in the filesystem
     
     Args:
         repo_info: Dictionary with repository information
         readme_content: Processed README content
+        valuable_files: List of valuable files collected from the repository
+        
+    Returns:
+        Path to the repository directory or None if failed
+    """
+    if not repo_info:
+        return None
+        
+    try:
+        # Create directory for this repository
+        repo_dir = os.path.join(FS_STORAGE_PATH, repo_info['full_name'].replace('/', '_'))
+        os.makedirs(repo_dir, exist_ok=True)
+        
+        # Create metadata file
+        metadata_path = os.path.join(repo_dir, 'metadata.json')
+        with open(metadata_path, 'w', encoding='utf-8') as f:
+            json.dump(repo_info, f, indent=2)
+            
+        # Store README if available
+        if readme_content:
+            readme_path = os.path.join(repo_dir, 'README.md')
+            with open(readme_path, 'w', encoding='utf-8') as f:
+                f.write(readme_content)
+                
+        # Store valuable files if provided
+        if valuable_files and isinstance(valuable_files, list):
+            files_dir = os.path.join(repo_dir, 'files')
+            os.makedirs(files_dir, exist_ok=True)
+            
+            for file_info in valuable_files:
+                file_path = file_info.get('path', '')
+                if not file_path:
+                    continue
+                    
+                # Convert path to filename for storage
+                # Replace slashes with underscores to avoid directory issues
+                safe_filename = file_path.replace('/', '_')
+                
+                # Store raw content
+                content = file_info.get('content', '')
+                if content:
+                    content_path = os.path.join(files_dir, f"{safe_filename}.raw")
+                    with open(content_path, 'w', encoding='utf-8', errors='replace') as f:
+                        f.write(content)
+                
+                # Store processed content
+                processed_content = file_info.get('processed_content', '')
+                if processed_content:
+                    processed_path = os.path.join(files_dir, f"{safe_filename}.md")
+                    with open(processed_path, 'w', encoding='utf-8', errors='replace') as f:
+                        f.write(processed_content)
+            
+            # Create an index file listing all collected files
+            index_path = os.path.join(files_dir, '_index.md')
+            with open(index_path, 'w', encoding='utf-8') as f:
+                f.write(f"# Files collected from {repo_info['full_name']}\n\n")
+                for idx, file_info in enumerate(valuable_files):
+                    file_path = file_info.get('path', '')
+                    file_type = file_info.get('type', 'unknown')
+                    size = file_info.get('size', 0)
+                    f.write(f"{idx+1}. **{file_path}** ({file_type}, {size} bytes)\n")
+        
+        logger.info(f"Stored repository data in filesystem at {repo_dir}")
+        return repo_dir
+        
+    except Exception as e:
+        logger.error(f"Error storing repository {repo_info['full_name']} in filesystem: {str(e)}")
+        return None
+
+def store_repo_in_db(conn, repo_info, readme_content, valuable_files=None):
+    """
+    Store repository information in the database
+    
+    Args:
+        conn: Database connection
+        repo_info: Dictionary with repository information
+        readme_content: Processed README content
+        valuable_files: List of valuable files collected from the repository
         
     Returns:
         Boolean indicating success
@@ -282,32 +552,56 @@ def store_repo_in_db(repo_info, readme_content):
     repo_info['readme'] = readme_content
     
     try:
-        # Connect to the database
-        conn = sqlite3.connect(DB_PATH)
+        # No need to reconnect - use the provided connection
         cursor = conn.cursor()
         
         # Check if the repository already exists
         cursor.execute("SELECT id FROM github_repos WHERE full_name = ?", (repo_info['full_name'],))
         existing_id = cursor.fetchone()
         
+        # Get column information to handle schema differences
+        cursor.execute("PRAGMA table_info(github_repos)")
+        columns = {column[1]: True for column in cursor.fetchall()}
+        
+        # Map GitHub API names to database names
+        field_mapping = {
+            'stargazers_count': 'stars',
+            'forks_count': 'forks',
+            'quality_score': 'value_score'
+        }
+        
+        # Adjust repo_info based on available columns
+        adjusted_repo_info = {}
+        for key, value in repo_info.items():
+            # Map API field names to database field names
+            mapped_key = field_mapping.get(key, key)
+            
+            # Check if column exists in the table
+            if mapped_key in columns:
+                # Convert list values to JSON strings
+                if isinstance(value, list):
+                    adjusted_repo_info[mapped_key] = json.dumps(value)
+                else:
+                    adjusted_repo_info[mapped_key] = value
+        
         if existing_id:
             # Update existing repository
             repo_id = existing_id[0]
             
             # Create placeholders for the update query
-            set_clause = ', '.join([f"{key} = ?" for key in repo_info.keys()])
-            values = list(repo_info.values())
+            set_clause = ', '.join([f"{key} = ?" for key in adjusted_repo_info.keys()])
+            values = list(adjusted_repo_info.values())
             
             # Update the repository
             cursor.execute(f"UPDATE github_repos SET {set_clause} WHERE id = ?", values + [repo_id])
             logger.info(f"Updated repository {repo_info['full_name']} in database")
         else:
             # Insert new repository
-            columns = ', '.join(repo_info.keys())
-            placeholders = ', '.join(['?'] * len(repo_info))
+            columns = ', '.join(adjusted_repo_info.keys())
+            placeholders = ', '.join(['?'] * len(adjusted_repo_info))
             
             cursor.execute(f"INSERT INTO github_repos ({columns}) VALUES ({placeholders})", 
-                          list(repo_info.values()))
+                          list(adjusted_repo_info.values()))
             repo_id = cursor.lastrowid
             logger.info(f"Inserted repository {repo_info['full_name']} into database")
         
@@ -315,33 +609,57 @@ def store_repo_in_db(repo_info, readme_content):
         if readme_content:
             # Get GitHub source type ID
             cursor.execute("SELECT id FROM source_types WHERE name = 'github'")
-            github_source_type_id = cursor.fetchone()[0]
+            result = cursor.fetchone()
+            if result:
+                github_source_type_id = result[0]
+            else:
+                # Insert github source type if it doesn't exist
+                cursor.execute("INSERT INTO source_types (name, description) VALUES (?, ?)",
+                             ('github', 'GitHub repositories and documentation'))
+                github_source_type_id = cursor.lastrowid
             
             # Check if already exists in ai_content
             cursor.execute("SELECT id FROM ai_content WHERE source_type_id = ? AND source_id = ?", 
                           (github_source_type_id, repo_info['full_name']))
             existing_content_id = cursor.fetchone()
             
+            # Prepare metadata
+            metadata_dict = {
+                'stars': repo_info.get('stargazers_count', repo_info.get('stars', 0)),
+                'forks': repo_info.get('forks_count', repo_info.get('forks', 0)),
+                'language': repo_info.get('language', ''),
+                'topics': repo_info.get('topics', []) if isinstance(repo_info.get('topics'), list) else json.loads(repo_info.get('topics', '[]')),
+                'value_score': repo_info.get('quality_score', repo_info.get('value_score', 0)),
+                'has_docs_directory': repo_info.get('has_docs_directory', False),
+                'last_updated': repo_info.get('updated_at', repo_info.get('last_updated', ''))
+            }
+            metadata_json = json.dumps(metadata_dict)
+            
             if existing_content_id:
                 # Update existing content
                 cursor.execute("""
                 UPDATE ai_content SET 
                     title = ?, 
+                    description = ?,
                     content = ?, 
                     url = ?, 
-                    timestamp = ?, 
-                    star_count = ?, 
-                    last_updated = ?
+                    date_created = ?,
+                    date_collected = ?,
+                    metadata = ?,
+                    is_indexed = ?
                 WHERE id = ?
                 """, (
-                    repo_info['description'] or repo_info['name'],
+                    repo_info['name'],
+                    repo_info.get('description', ''),
                     readme_content,
                     repo_info['url'],
-                    repo_info['updated_at'],
-                    repo_info['stars'],
+                    repo_info.get('created_at', ''),
                     datetime.now().isoformat(),
+                    metadata_json,
+                    0,  # Reset indexing flag to ensure re-indexing
                     existing_content_id[0]
                 ))
+                ai_content_id = existing_content_id[0]
                 logger.info(f"Updated repository {repo_info['full_name']} in ai_content table")
             else:
                 # Insert new content
@@ -350,27 +668,104 @@ def store_repo_in_db(repo_info, readme_content):
                     source_type_id, 
                     source_id, 
                     title, 
+                    description,
                     content, 
                     url, 
-                    timestamp, 
-                    star_count, 
-                    last_updated
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    date_created,
+                    date_collected,
+                    metadata,
+                    is_indexed
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     github_source_type_id,
                     repo_info['full_name'],
-                    repo_info['description'] or repo_info['name'],
+                    repo_info['name'],
+                    repo_info.get('description', ''),
                     readme_content,
                     repo_info['url'],
-                    repo_info['updated_at'],
-                    repo_info['stars'],
-                    datetime.now().isoformat()
+                    repo_info.get('created_at', ''),
+                    datetime.now().isoformat(),
+                    metadata_json,
+                    0  # Not indexed yet
                 ))
+                ai_content_id = cursor.lastrowid
                 logger.info(f"Inserted repository {repo_info['full_name']} into ai_content table")
+        
+        # Store valuable files if provided
+        if valuable_files and isinstance(valuable_files, list):
+            stored_files = 0
+            
+            for file_info in valuable_files:
+                path = file_info.get('path', '')
+                file_type = file_info.get('type', 'unknown')
+                content = file_info.get('content', '')
+                processed_content = file_info.get('processed_content', '')
+                size = file_info.get('size', 0)
+                
+                if not path or not content:
+                    continue
+                
+                try:
+                    # Check if file already exists
+                    cursor.execute(
+                        "SELECT id FROM github_files WHERE repo_id = ? AND path = ?",
+                        (repo_id, path)
+                    )
+                    existing_file = cursor.fetchone()
+                    
+                    if existing_file:
+                        # Update existing file
+                        cursor.execute("""
+                        UPDATE github_files SET 
+                            file_type = ?,
+                            content = ?,
+                            processed_content = ?,
+                            size = ?,
+                            last_updated = ?
+                        WHERE id = ?
+                        """, (
+                            file_type,
+                            content,
+                            processed_content,
+                            size,
+                            datetime.now().isoformat(),
+                            existing_file[0]
+                        ))
+                    else:
+                        # Insert new file
+                        cursor.execute("""
+                        INSERT INTO github_files (
+                            repo_id,
+                            path,
+                            file_type,
+                            content,
+                            processed_content,
+                            size,
+                            last_updated
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """, (
+                            repo_id,
+                            path,
+                            file_type,
+                            content,
+                            processed_content,
+                            size,
+                            datetime.now().isoformat()
+                        ))
+                    
+                    stored_files += 1
+                    
+                except Exception as e:
+                    logger.error(f"Error storing file {path}: {str(e)}")
+            
+            logger.info(f"Stored {stored_files} valuable files from repository {repo_info['full_name']}")
         
         # Commit changes and close connection
         conn.commit()
         conn.close()
+        
+        # Also store in filesystem
+        store_repo_files(repo_info, readme_content, valuable_files)
         
         return True
     
@@ -378,70 +773,2213 @@ def store_repo_in_db(repo_info, readme_content):
         logger.error(f"Error storing repository {repo_info['full_name']} in database: {str(e)}")
         return False
 
-def collect_github_repos(token=None, max_repos=None):
+def get_repo_directory_structure(session, repo_name, path="", page=1):
     """
-    Main function to collect GitHub repositories
+    Get the directory structure with pagination and rate limiting
     
     Args:
-        token: GitHub API token
-        max_repos: Maximum number of repositories to collect (None for all)
+        session: GitHub API session
+        repo_name: Repository name in the format "owner/repo"
+        path: Directory path within repository
+        page: Page number for pagination
+        
+    Returns:
+        List of directory contents from GitHub API
+    """
+    try:
+        # Add delay to respect rate limits
+        time.sleep(0.5)
+        
+        response = session.get(
+            f"https://api.github.com/repos/{repo_name}/contents/{path}",
+            params={"per_page": 100, "page": page}
+        )
+        
+        # Handle rate limiting
+        if handle_rate_limit(response):
+            # Retry the request after waiting for rate limit reset
+            response = session.get(
+                f"https://api.github.com/repos/{repo_name}/contents/{path}",
+                params={"per_page": 100, "page": page}
+            )
+        
+        # Check rate limit headers regardless
+        remaining = int(response.headers.get('X-RateLimit-Remaining', 0))
+        reset_time = int(response.headers.get('X-RateLimit-Reset', 0))
+        
+        if remaining < 10:
+            current_time = time.time()
+            sleep_time = max(0, reset_time - current_time) + 10
+            logger.warning(f"GitHub API rate limit almost reached. Sleeping for {sleep_time:.2f} seconds")
+            time.sleep(sleep_time)
+            
+        response.raise_for_status()
+        contents = response.json()
+        
+        # Handle case where contents is a file, not a directory
+        if not isinstance(contents, list):
+            return [contents]
+            
+        # Check if there might be more pages
+        if len(contents) == 100:
+            try:
+                next_page = get_repo_directory_structure(session, repo_name, path, page + 1)
+                contents.extend(next_page)
+            except Exception as e:
+                logger.warning(f"Error getting next page for {repo_name}/{path}: {str(e)}")
+                
+        return contents
+    except Exception as e:
+        logger.error(f"Error getting directory structure for {repo_name}/{path}: {str(e)}")
+        return []
+
+def get_file_value_score(file_info):
+    """
+    Calculate a value score for a file based on its type and location
+    
+    Args:
+        file_info: File information dictionary from GitHub API
+        
+    Returns:
+        Value score (0-100) with higher values for more educational content
+    """
+    if not file_info or not isinstance(file_info, dict):
+        return 0
+        
+    path = file_info.get('path', '').lower()
+    size = file_info.get('size', 0)
+    name = file_info.get('name', '').lower()
+    
+    # Base score starts at 0
+    score = 0
+    
+    # File is too large
+    if size > MAX_FILE_SIZE:
+        return 0
+        
+    # Check if file is in any excluded directory
+    if any(excluded_dir in path.split('/') for excluded_dir in EXCLUDED_DIRECTORIES):
+        return 0
+        
+    # Give high scores to specific high-value files
+    if any(high_value_file in name for high_value_file in HIGH_VALUE_FILES):
+        score += 80
+    
+    # Score based on directory value (earlier in the list = higher value)
+    for idx, valuable_dir in enumerate(VALUABLE_DIRECTORIES):
+        weight = len(VALUABLE_DIRECTORIES) - idx  # Higher weight for earlier directories
+        if valuable_dir in path.lower().split('/'):
+            score += min(40, weight * 5)  # Max 40 points from directory
+            break
+            
+    # Score based on file extension
+    if path.endswith('.ipynb'):
+        score += 30  # Jupyter notebooks are high value
+    elif path.endswith('.md') or path.endswith('.rst'):
+        score += 25  # Markdown/RST documentation
+    elif path.endswith('.py'):
+        # Python files have variable value
+        if 'test' in path.split('/') or 'test_' in name or name.startswith('test'):
+            score += 5  # Test files are low value
+        elif 'util' in path.split('/') or 'utils' in path.split('/') or 'util' in name or 'utils' in name:
+            score += 10  # Utility files are medium-low value
+        else:
+            score += 20  # Regular Python files
+    elif path.endswith('.yaml') or path.endswith('.yml') or path.endswith('.json'):
+        score += 15  # Configuration files
+    elif path.endswith('.txt'):
+        score += 10  # Text files
+    elif path.endswith('.html') or path.endswith('.js') or path.endswith('.css'):
+        score += 5  # Web content
+    
+    # Cap the score at 100
+    return min(100, score)
+
+def is_valuable_file(file_info, min_value_score=30):
+    """
+    Determine if a file is valuable for knowledge extraction
+    
+    Args:
+        file_info: File information dictionary from GitHub API
+        min_value_score: Minimum value score for a file to be considered valuable
+        
+    Returns:
+        Boolean indicating if the file is valuable
+    """
+    if not file_info or not isinstance(file_info, dict):
+        return False
+        
+    path = file_info.get('path', '').lower()
+    size = file_info.get('size', 0)
+    
+    # Skip files that are too large
+    if size > MAX_FILE_SIZE:
+        return False
+        
+    # Check file extension
+    if not any(path.endswith(ext) for ext in VALUABLE_FILE_TYPES):
+        return False
+    
+    # Calculate value score and check if it meets the minimum
+    value_score = get_file_value_score(file_info)
+    return value_score >= min_value_score
+
+def get_file_type(path):
+    """
+    Determine the file type from path
+    
+    Args:
+        path: File path
+        
+    Returns:
+        File type string
+    """
+    path_lower = path.lower()
+    
+    if path_lower.endswith('.ipynb'):
+        return 'notebook'
+    elif path_lower.endswith('.py'):
+        return 'python'
+    elif path_lower.endswith('.md'):
+        return 'markdown'
+    elif path_lower.endswith('.rst'):
+        return 'restructured_text'
+    elif path_lower.endswith('.json'):
+        return 'json'
+    elif path_lower.endswith('.yaml') or path_lower.endswith('.yml'):
+        return 'yaml'
+    elif path_lower.endswith('.html'):
+        return 'html'
+    elif path_lower.endswith('.js'):
+        return 'javascript'
+    elif path_lower.endswith('.css'):
+        return 'css'
+    elif path_lower.endswith('.txt'):
+        return 'text'
+    else:
+        return 'other'
+
+def calculate_repo_quality_score(repo_info, valuable_files=None):
+    """
+    Calculate a quality score (0-100) for a GitHub repository based on its educational value.
+    
+    Higher scores indicate repositories with higher educational value. Factors include:
+    - Stars and forks (popularity)
+    - Recent activity (maintenance)
+    - Documentation quality
+    - README quality
+    - Presence of tutorials and examples
+    - Well-documented code
+    
+    Args:
+        repo_info: Dictionary with repository metadata
+        valuable_files: Optional list of valuable files with scoring information
+        
+    Returns:
+        Integer score from 0-100 representing the overall quality
+    """
+    if not repo_info:
+        return 0
+        
+    # Initialize base score
+    score = 50  # Start with neutral score
+    
+    # Extract basic metrics
+    stars = repo_info.get('stargazers_count', 0)
+    forks = repo_info.get('forks_count', 0)
+    watchers = repo_info.get('watchers_count', 0)
+    is_archived = repo_info.get('archived', False)
+    has_wiki = repo_info.get('has_wiki', False)
+    description = repo_info.get('description', '')
+    created_at = repo_info.get('created_at', None)
+    updated_at = repo_info.get('updated_at', None)
+    pushed_at = repo_info.get('pushed_at', None)
+    topics = repo_info.get('topics', [])
+    
+    # Score based on popularity (stars + forks)
+    if stars + forks >= 10000:
+        score += 20
+    elif stars + forks >= 5000:
+        score += 15
+    elif stars + forks >= 1000:
+        score += 10
+    elif stars + forks >= 500:
+        score += 5
+    elif stars + forks >= 100:
+        score += 2
+    
+    # Score based on recent activity
+    if pushed_at:
+        try:
+            last_push_date = datetime.fromisoformat(pushed_at.replace('Z', '+00:00'))
+            now = datetime.now(timezone.utc)
+            days_since_push = (now - last_push_date).days
+            
+            if days_since_push <= 30:  # Active in the last month
+                score += 10
+            elif days_since_push <= 90:  # Active in the last quarter
+                score += 5
+            elif days_since_push <= 365:  # Active in the last year
+                score += 2
+            else:  # Inactive for over a year
+                score -= 5
+        except Exception:
+            # If date parsing fails, ignore this criterion
+            pass
+    
+    # Score based on repository age and maturity
+    if created_at:
+        try:
+            creation_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+            now = datetime.now(timezone.utc)
+            age_in_days = (now - creation_date).days
+            
+            if age_in_days >= 365 * 3:  # Older than 3 years
+                score += 5  # Established project
+            elif age_in_days <= 30:  # Very new project
+                score -= 3  # May not be mature
+        except Exception:
+            # If date parsing fails, ignore this criterion
+            pass
+    
+    # Score based on description quality
+    if description:
+        words = description.split()
+        if len(words) >= 10:
+            score += 3  # Detailed description
+        if 'tutorial' in description.lower() or 'learn' in description.lower() or 'guide' in description.lower() or 'example' in description.lower():
+            score += 5  # Educational keywords in description
+    
+    # Score based on topics
+    educational_topics = ['tutorial', 'examples', 'guide', 'learning', 'education', 'teaching', 
+                         'documentation', 'book', 'course', 'academic', 'learn', 'textbook',
+                         'workshop', 'exercises', 'lessons', 'training']
+    
+    ai_ml_topics = ['machine-learning', 'artificial-intelligence', 'deep-learning', 'data-science',
+                   'neural-networks', 'nlp', 'computer-vision', 'ml', 'ai', 'reinforcement-learning']
+    
+    topic_score = 0
+    for topic in topics:
+        topic_lower = topic.lower()
+        if topic_lower in educational_topics:
+            topic_score += 2  # Educational topics are valuable
+        if topic_lower in ai_ml_topics:
+            topic_score += 1  # AI/ML topics are relevant
+    
+    # Cap the topic score at 10
+    score += min(10, topic_score)
+    
+    # Score based on presence of wiki
+    if has_wiki:
+        score += 3
+    
+    # Penalize archived repositories
+    if is_archived:
+        score -= 10
+    
+    # Score based on valuable files if provided
+    if valuable_files and len(valuable_files) > 0:
+        # Calculate average file score
+        avg_file_score = sum(f.get('value_score', 0) for f in valuable_files) / len(valuable_files)
+        
+        # Boost based on average file quality
+        if avg_file_score >= 75:
+            score += 15
+        elif avg_file_score >= 60:
+            score += 10
+        elif avg_file_score >= 45:
+            score += 5
+        
+        # Check for specific high-value content types
+        has_docs = False
+        has_tutorials = False
+        has_notebooks = False
+        has_well_documented_py = False
+        
+        for file in valuable_files:
+            path = file.get('path', '').lower()
+            
+            # Check for documentation
+            if '/docs/' in path or '/doc/' in path or '/documentation/' in path or path.endswith('readme.md'):
+                has_docs = True
+            
+            # Check for tutorials or examples
+            if '/tutorials/' in path or '/examples/' in path or 'tutorial' in path or 'example' in path:
+                has_tutorials = True
+            
+            # Check for notebooks
+            if path.endswith('.ipynb'):
+                has_notebooks = True
+            
+            # Check for well-documented Python files
+            if path.endswith('.py') and file.get('value_score', 0) >= 70:
+                has_well_documented_py = True
+        
+        # Boost for having key educational content
+        if has_docs:
+            score += 5
+        if has_tutorials:
+            score += 7
+        if has_notebooks:
+            score += 5
+        if has_well_documented_py:
+            score += 3
+    
+    # Check for README content if provided separately
+    readme_content = repo_info.get('readme_content', '')
+    if readme_content:
+        # Simple analysis of README quality
+        readme_length = len(readme_content)
+        if readme_length > 5000:  # Long README
+            score += 5
+        elif readme_length > 2000:  # Medium README
+            score += 3
+        
+        # Check for table of contents (indicator of organized content)
+        if 'table of contents' in readme_content.lower() or '## contents' in readme_content.lower() or '## index' in readme_content.lower():
+            score += 2
+        
+        # Check for examples section
+        if '## example' in readme_content.lower() or '## usage' in readme_content.lower():
+            score += 2
+        
+        # Check for installation instructions
+        if '## install' in readme_content.lower() or '## setup' in readme_content.lower():
+            score += 1
+    
+    # Normalize score to 0-100 range
+    score = max(0, min(100, score))
+    
+    return int(score)
+
+def collect_file_content(session, repo_name, file_path, file_info=None):
+    """
+    Collect content for a file
+    
+    Args:
+        session: GitHub API session
+        repo_name: Repository name in the format "owner/repo"
+        file_path: Path to the file within the repository
+        file_info: File information dictionary (optional)
+        
+    Returns:
+        File content as string or None if failed
+    """
+    try:
+        # If file_info is not provided, get it
+        if not file_info:
+            response = session.get(f"https://api.github.com/repos/{repo_name}/contents/{file_path}")
+            response.raise_for_status()
+            file_info = response.json()
+        
+        # Check if the file is too large for direct download
+        if file_info.get('size', 0) > 1000000:  # > ~1MB
+            logger.warning(f"File {file_path} is too large for direct download. Using raw URL instead.")
+            
+            # Use the raw URL for large files
+            response = session.get(file_info.get('download_url'))
+            response.raise_for_status()
+            return response.text
+        
+        # GitHub API returns content as base64 encoded
+        if 'content' in file_info and file_info.get('encoding') == 'base64':
+            content = base64.b64decode(file_info['content']).decode('utf-8', errors='replace')
+            return content
+            
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error collecting content for file {file_path}: {str(e)}")
+        return None
+
+def process_notebook(content, repo_name="", file_path=""):
+    """
+    Process Jupyter notebook content to extract valuable information
+    
+    This function extracts:
+    - Notebook metadata (title, kernel info)
+    - Table of contents from headers
+    - Well-documented code cells with explanations
+    - Markdown content with educational value
+    
+    Args:
+        content: Notebook content as string (JSON)
+        repo_name: Repository name for context
+        file_path: File path for context
+        
+    Returns:
+        Processed content focusing on educational value
+    """
+    if not content:
+        return None
+        
+    header = f"# {repo_name}: {file_path}\n\n"
+    
+    try:
+        import json
+        notebook = json.loads(content)
+        
+        if 'cells' not in notebook:
+            return header + "No cells found in notebook."
+            
+        cells = notebook['cells']
+        if not cells:
+            return header + "Empty notebook."
+            
+        # Extract notebook metadata
+        metadata = notebook.get('metadata', {})
+        kernelspec = metadata.get('kernelspec', {})
+        kernel_name = kernelspec.get('display_name', kernelspec.get('name', 'Unknown'))
+        
+        # Try to extract title from the first header in markdown cells
+        title = os.path.basename(file_path)
+        for cell in cells:
+            if cell.get('cell_type') == 'markdown':
+                cell_source = ''.join(cell.get('source', []))
+                # Look for a header
+                lines = cell_source.split('\n')
+                for line in lines:
+                    if line.startswith('# '):
+                        title = line.replace('# ', '').strip()
+                        break
+                if title != os.path.basename(file_path):
+                    break  # Found a title
+            
+        # Add notebook metadata
+        processed_content = f"# {title}\n\n"
+        processed_content += f"**Kernel:** {kernel_name}\n\n"
+        if 'language_info' in metadata:
+            lang_info = metadata['language_info']
+            if 'name' in lang_info:
+                processed_content += f"**Language:** {lang_info['name']}\n\n"
+                
+        # Build table of contents by extracting headers
+        toc = []
+        toc_levels = {}  # Map header level (# count) to index
+        
+        # First pass: collect headers for TOC
+        for i, cell in enumerate(cells):
+            if cell.get('cell_type') != 'markdown':
+                continue
+                
+            cell_source = ''.join(cell.get('source', []))
+            lines = cell_source.split('\n')
+            
+            for line in lines:
+                if line.startswith('#'):
+                    # Count the number of # to determine level
+                    level = 0
+                    for char in line:
+                        if char == '#':
+                            level += 1
+                        else:
+                            break
+                            
+                    if level > 0 and level <= 4:  # Only include up to level 4 headers in TOC
+                        header_text = line[level:].strip()
+                        # Create an anchor by converting header to lowercase and replacing spaces with dashes
+                        anchor = header_text.lower().replace(' ', '-').replace('(', '').replace(')', '').replace('.', '')
+                        toc.append((level, header_text, anchor, i))
+        
+        # Add table of contents if more than 2 entries
+        if len(toc) > 2:
+            processed_content += "## Table of Contents\n\n"
+            for level, header_text, anchor, _ in toc:
+                indent = "  " * (level - 1)
+                processed_content += f"{indent}* [{header_text}](#{anchor})\n"
+            processed_content += "\n"
+        
+        # Extract imports for context
+        import_cells = []
+        for i, cell in enumerate(cells):
+            if cell.get('cell_type') != 'code':
+                continue
+                
+            cell_source = ''.join(cell.get('source', []))
+            if 'import ' in cell_source or 'from ' in cell_source:
+                has_imports = False
+                for line in cell_source.split('\n'):
+                    line = line.strip()
+                    if line.startswith('import ') or line.startswith('from '):
+                        has_imports = True
+                        break
+                if has_imports:
+                    import_cells.append((i, cell_source))
+        
+        # Process cells to extract valuable content
+        has_imports_section = False
+        processed_cells = []
+        
+        for i, cell in enumerate(cells):
+            cell_type = cell.get('cell_type')
+            cell_source = ''.join(cell.get('source', []))
+            
+            # Skip empty cells
+            if not cell_source.strip():
+                continue
+                
+            # Process markdown cells
+            if cell_type == 'markdown':
+                # Check if this is a header cell
+                is_header = False
+                header_level = 0
+                header_text = ""
+                
+                lines = cell_source.split('\n')
+                for line in lines:
+                    if line.startswith('#'):
+                        # Count the number of # to determine level
+                        level = 0
+                        for char in line:
+                            if char == '#':
+                                level += 1
+                            else:
+                                break
+                                
+                        if level > 0:
+                            is_header = True
+                            header_level = level
+                            header_text = line[level:].strip()
+                            break
+                
+                # Include markdown content, with special handling for headers
+                if is_header:
+                    # Find if this header is in our TOC
+                    anchor = header_text.lower().replace(' ', '-').replace('(', '').replace(')', '').replace('.', '')
+                    processed_cells.append(f"{'#' * header_level} {header_text}")
+                else:
+                    # Regular markdown, include as is
+                    processed_cells.append(cell_source)
+            
+            # Process code cells
+            elif cell_type == 'code':
+                # Check if this is an import cell
+                is_import_cell = False
+                if 'import ' in cell_source or 'from ' in cell_source:
+                    for line in cell_source.split('\n'):
+                        line = line.strip()
+                        if line.startswith('import ') or line.startswith('from '):
+                            is_import_cell = True
+                            break
+                
+                # Check if cell has output
+                outputs = cell.get('outputs', [])
+                has_output = len(outputs) > 0
+                
+                # Check if cell has text output or image output
+                has_text_output = False
+                has_image_output = False
+                output_text = ""
+                
+                for output in outputs:
+                    if 'text' in output:
+                        has_text_output = True
+                        if isinstance(output['text'], list):
+                            output_text += ''.join(output['text'])
+                        else:
+                            output_text += str(output['text'])
+                    elif 'data' in output and 'image/png' in output['data']:
+                        has_image_output = True
+                
+                # Calculate code quality score
+                code_quality = 0
+                
+                # Check for comments
+                comment_lines = sum(1 for line in cell_source.split('\n') if line.strip().startswith('#'))
+                if len(cell_source.split('\n')) > 0:
+                    comment_ratio = comment_lines / len(cell_source.split('\n'))
+                    if comment_ratio > 0.2:  # Over 20% comments
+                        code_quality += 20
+                    elif comment_ratio > 0.1:  # Over 10% comments
+                        code_quality += 10
+                
+                # Check for docstrings
+                has_docstring = '"""' in cell_source or "'''" in cell_source
+                if has_docstring:
+                    code_quality += 15
+                
+                # Check for function or class definitions
+                has_function = 'def ' in cell_source
+                has_class = 'class ' in cell_source
+                if has_function or has_class:
+                    code_quality += 15
+                
+                # Boost if it has output with reasonable length
+                if has_text_output and len(output_text) > 10 and len(output_text) < 2000:
+                    code_quality += 10
+                
+                # Boost if it has image output
+                if has_image_output:
+                    code_quality += 15
+                
+                # Special handling for import cells
+                if is_import_cell and not has_imports_section:
+                    has_imports_section = True
+                    processed_cells.append("## Imports\n")
+                    processed_cells.append("```python\n" + cell_source + "\n```")
+                    continue
+                
+                # Only include code cells that meet quality thresholds
+                # Always include:
+                # - High-quality cells with comments or docstrings
+                # - Cells with function or class definitions
+                # - Cells that produce image outputs
+                # - Short example cells (even without comments)
+                cell_lines = len(cell_source.split('\n'))
+                is_short_example = cell_lines <= 5
+                
+                if code_quality >= 15 or is_short_example or has_image_output:
+                    # Format code cell nicely
+                    if has_function:
+                        fn_name = ""
+                        for line in cell_source.split('\n'):
+                            if line.strip().startswith('def '):
+                                fn_name = line.strip().replace('def ', '').split('(')[0].strip()
+                                break
+                        if fn_name:
+                            processed_cells.append(f"### Function: {fn_name}")
+                    elif has_class:
+                        class_name = ""
+                        for line in cell_source.split('\n'):
+                            if line.strip().startswith('class '):
+                                class_name = line.strip().replace('class ', '').split('(')[0].strip()
+                                break
+                        if class_name:
+                            processed_cells.append(f"### Class: {class_name}")
+                    else:
+                        # Add a generic header for code blocks
+                        processed_cells.append("### Code")
+                    
+                    # Add the code
+                    processed_cells.append("```python\n" + cell_source + "\n```")
+                    
+                    # Include text output if present and not too long
+                    if has_text_output and len(output_text) < 1000:
+                        processed_cells.append("**Output:**")
+                        processed_cells.append("```\n" + output_text.strip() + "\n```")
+                    
+                    # For image outputs, add a note that images are present
+                    if has_image_output:
+                        processed_cells.append("*This cell produces image output (visualization/plot)*")
+        
+        # Combine all processed content
+        if processed_cells:
+            processed_content += '\n\n'.join(processed_cells)
+        else:
+            processed_content += "No valuable content found in notebook."
+            
+        return processed_content
+        
+    except Exception as e:
+        logger.error(f"Error processing notebook {file_path}: {str(e)}")
+        return header + "Error processing notebook content."
+
+def process_python_file(content, repo_name="", file_path=""):
+    """
+    Process Python file content to extract valuable information
+    
+    Args:
+        content: Python file content as string
+        repo_name: Repository name for context
+        file_path: File path for context
+        
+    Returns:
+        Processed content focusing on docstrings and important code
+    """
+    if not content:
+        return None
+        
+    header = f"# {repo_name}: {file_path}\n\n"
+    
+    try:
+        lines = content.split('\n')
+        processed_sections = []
+        
+        # File structure analysis
+        has_classes = any('class ' in line for line in lines)
+        has_functions = any('def ' in line for line in lines)
+        is_script = any(line.startswith('if __name__ == ') for line in lines)
+        is_utility = 'util' in file_path.lower() or any('def ' + name in content for name in ['get_', 'set_', 'is_', 'has_', 'check_'])
+        is_test = 'test' in file_path.lower() or file_path.lower().endswith('_test.py') or file_path.lower().startswith('test_')
+        
+        # Extract file-level context
+        file_context = []
+        if is_script:
+            file_context.append("Type: Script")
+        elif is_utility:
+            file_context.append("Type: Utility")
+        elif is_test:
+            file_context.append("Type: Test")
+        elif has_classes:
+            file_context.append("Type: Class definition")
+        elif has_functions:
+            file_context.append("Type: Function collection")
+            
+        # Add context to header if available
+        if file_context:
+            processed_sections.append(f"**File context:** {', '.join(file_context)}\n")
+        
+        # Extract module docstring if present
+        in_docstring = False
+        docstring_lines = []
+        docstring_start_marker = None
+        
+        for i, line in enumerate(lines):
+            if i == 0 and line.startswith('#!'):
+                continue  # Skip shebang line
+                
+            # Look for triple quotes that might indicate docstrings
+            if ('"""' in line or "'''" in line) and not in_docstring:
+                marker = '"""' if '"""' in line else "'''"
+                if line.strip().startswith(marker) or line.strip().startswith('r' + marker):
+                    in_docstring = True
+                    docstring_start_marker = marker
+                    docstring_lines.append(line)
+                    # Check if docstring ends on the same line
+                    if line.count(marker) >= 2:
+                        in_docstring = False
+                        break
+            elif in_docstring:
+                docstring_lines.append(line)
+                if docstring_start_marker in line:
+                    in_docstring = False
+                    
+            # Stop if we hit imports or code after searching for initial docstring
+            if not in_docstring and i > 20 and (line.startswith('import ') or line.startswith('from ')):
+                break
+        
+        # Extract docstring if found
+        if docstring_lines:
+            docstring = '\n'.join(docstring_lines)
+            # Clean up the docstring
+            docstring = docstring.replace('"""', '').replace("'''", '').strip()
+            processed_sections.append(f"## Module Documentation\n\n{docstring}\n")
+        
+        # Extract imports - these help understand dependencies
+        import_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith('import ') or stripped.startswith('from '):
+                import_lines.append(line)
+        
+        if import_lines:
+            processed_sections.append("## Imports\n\n```python\n" + '\n'.join(import_lines) + "\n```\n")
+        
+        # Extract classes and functions with docstrings
+        current_section = None
+        current_definition = None
+        current_docstring = []
+        current_code = []
+        in_section_docstring = False
+        in_section_code = False
+        docstring_marker = None
+        has_content = False
+        
+        section_data = []
+        
+        for i, line in enumerate(lines):
+            stripped = line.strip()
+            
+            # Handle start of class or function
+            if stripped.startswith('class ') or stripped.startswith('def '):
+                # Store previous section if it exists
+                if current_section and (current_docstring or current_code):
+                    section_data.append((current_section, current_definition, current_docstring, current_code))
+                    has_content = True
+                
+                # Start new section
+                current_section = 'class' if stripped.startswith('class ') else 'function'
+                current_definition = line
+                current_docstring = []
+                current_code = [line]
+                in_section_docstring = False
+                in_section_code = True
+                docstring_marker = None
+                continue
+                
+            # Continue collecting code for current section
+            if current_section and in_section_code:
+                current_code.append(line)
+                
+                # Look for docstring start after function/class definition
+                if ('"""' in stripped or "'''" in stripped) and not in_section_docstring:
+                    marker = '"""' if '"""' in stripped else "'''"
+                    if stripped.startswith(marker) or stripped.startswith('r' + marker):
+                        in_section_docstring = True
+                        docstring_marker = marker
+                        current_docstring.append(line)
+                        # Check if docstring ends on the same line
+                        if stripped.count(marker) >= 2:
+                            in_section_docstring = False
+                elif in_section_docstring:
+                    current_docstring.append(line)
+                    if docstring_marker in line:
+                        in_section_docstring = False
+                        
+                # End of class/function when indentation returns to zero
+                if current_section == 'function' and stripped and not stripped.startswith('#') and not line.startswith(' ') and not line.startswith('\t'):
+                    section_data.append((current_section, current_definition, current_docstring, current_code))
+                    has_content = True
+                    current_section = None
+                    
+        # Add the last section if it exists
+        if current_section and (current_docstring or current_code):
+            section_data.append((current_section, current_definition, current_docstring, current_code))
+            has_content = True
+        
+        # Process all collected sections
+        for section_type, definition, docstring, code in section_data:
+            # Skip sections without docstrings unless it's a short function/class (likely an example)
+            if (not docstring and len(code) > 10 and 
+                not any(line.strip().startswith('#') for line in code[1:]) and
+                not is_script):
+                continue
+                
+            # Format the definition line
+            def_name = "Unknown"
+            if section_type == 'class':
+                def_match = re.search(r'class\s+(\w+)', definition)
+                if def_match:
+                    def_name = def_match.group(1)
+            else:  # function
+                def_match = re.search(r'def\s+(\w+)', definition)
+                if def_match:
+                    def_name = def_match.group(1)
+            
+            # Add section header
+            if section_type == 'class':
+                processed_sections.append(f"## Class: {def_name}\n")
+            else:
+                processed_sections.append(f"## Function: {def_name}\n")
+            
+            # Add docstring if present
+            if docstring:
+                # Clean up docstring
+                doc_text = '\n'.join(docstring)
+                doc_text = doc_text.replace('"""', '').replace("'''", '').strip()
+                processed_sections.append(f"### Documentation\n\n{doc_text}\n")
+            
+            # Always include the code
+            processed_sections.append(f"### Implementation\n\n```python\n{''.join(code)}\n```\n")
+        
+        # If no functions or classes were extracted, but it's a script file, extract the main section
+        if not has_content and is_script:
+            main_section_idx = -1
+            for i, line in enumerate(lines):
+                if line.strip().startswith('if __name__ == '):
+                    main_section_idx = i
+                    break
+                    
+            if main_section_idx >= 0:
+                main_code = lines[main_section_idx:]
+                processed_sections.append("## Main Script\n\n```python\n" + '\n'.join(main_code) + "\n```\n")
+                
+        # Combine all processed sections
+        processed_content = header + '\n'.join(processed_sections)
+        return processed_content
+        
+    except Exception as e:
+        logger.error(f"Error processing Python file {file_path}: {str(e)}")
+        return header + "Error processing Python file content."
+
+def process_markdown_file(content, repo_name="", file_path=""):
+    """
+    Process Markdown file content
+    
+    Args:
+        content: Markdown content as string
+        repo_name: Repository name for context
+        file_path: File path for context
+        
+    Returns:
+        Processed content with context
+    """
+    if not content:
+        return None
+        
+    header = f"# {repo_name}: {file_path}\n\n"
+    
+    # For markdown, we mostly want to keep it as is, just add context
+    return header + content
+
+def process_file_content(content, repo_name, file_path, file_type):
+    """
+    Process file content based on file type
+    
+    Args:
+        content: Raw file content as string
+        repo_name: Repository name for context
+        file_path: File path for context
+        file_type: Type of file
+        
+    Returns:
+        Processed content
+    """
+    if not content:
+        return None
+        
+    # Process based on file type
+    if file_type == 'notebook':
+        return process_notebook(content, repo_name, file_path)
+    elif file_type == 'python':
+        return process_python_file(content, repo_name, file_path)
+    elif file_type in ['markdown', 'restructured_text']:
+        return process_markdown_file(content, repo_name, file_path)
+    else:
+        # For other file types, just add a header
+        header = f"# {repo_name}: {file_path}\n\n"
+        return header + content
+
+def calculate_file_value_score(file_path, content, repo_info=None):
+    """
+    Calculate a value score (0-100) for a file based on its educational content.
+    
+    Higher scores indicate files with higher educational value. The score is based on:
+    - File location (e.g., docs, examples, tutorials)
+    - File type (e.g., md, ipynb, py)
+    - Content quality (docstrings, comments, explanations)
+    
+    Args:
+        file_path: Path of the file
+        content: Content of the file as string
+        repo_info: Repository metadata if available
+        
+    Returns:
+        Integer score from 0-100 representing the educational value
+    """
+    if not content or not file_path:
+        return 0
+        
+    file_path = file_path.lower()
+    
+    # Initialize base score
+    score = 50  # Start with neutral score
+    
+    # Path-based scoring
+    path_components = file_path.split('/')
+    filename = path_components[-1]
+    
+    # Check directory markers of high value content
+    if any(d in path_components for d in ['docs', 'documentation', 'doc']):
+        score += 20
+    elif any(d in path_components for d in ['examples', 'tutorials', 'guides', 'cookbook']):
+        score += 15
+    elif any(d in path_components for d in ['samples', 'demo', 'howto']):
+        score += 10
+        
+    # Penalize test, build, and utility directories
+    if any(d in path_components for d in ['test', 'tests', 'testing']):
+        score -= 15
+    elif any(d in path_components for d in ['build', 'dist', '.github']):
+        score -= 20
+    elif any(d in path_components for d in ['utils', 'util', 'tools', 'scripts']):
+        score -= 5
+        
+    # Special case: Don't overly penalize test examples or documentation
+    if ('test' in path_components and ('example' in path_components or 'doc' in path_components)):
+        score += 10  # Partly offset the test penalty
+    
+    # File type-based scoring
+    if filename.endswith('.md') or filename.endswith('.rst') or filename == 'readme':
+        # READMEs and markdown docs are valuable
+        score += 15
+        # README.md in the root is especially valuable
+        if filename.lower() in ['readme.md', 'readme.rst', 'readme'] and len(path_components) <= 2:
+            score += 10
+    elif filename.endswith('.ipynb'):
+        # Jupyter notebooks often contain educational content
+        score += 20
+    elif filename.endswith('.py'):
+        # Python files: value depends on content
+        if 'test_' in filename or filename.endswith('_test.py'):
+            score -= 10
+        elif 'example' in filename or 'tutorial' in filename or 'demo' in filename:
+            score += 10
+    elif filename.endswith(('.html', '.css', '.js')):
+        # Frontend files: less valuable for AI/ML knowledge
+        score -= 5
+    elif filename.endswith(('.json', '.yaml', '.yml', '.toml', '.ini')):
+        # Config files: variable value, boost if in examples
+        if any(d in path_components for d in ['examples', 'config', 'templates']):
+            score += 5
+        else:
+            score -= 5
+    elif filename.endswith(('.txt', '.log', '.csv', '.data')):
+        # Data files: usually low value
+        score -= 10
+        
+    # Content-based scoring
+    try:
+        # For markdown files and readmes
+        if filename.endswith('.md') or filename.endswith('.rst') or filename == 'readme':
+            # Headers indicate structure
+            headers_count = content.count('#') + content.count('===') + content.count('---')
+            if headers_count > 5:
+                score += 5
+                
+            # Code blocks indicate examples
+            code_blocks = content.count('```') / 2  # Divide by 2 to count pairs
+            if code_blocks > 2:
+                score += 5
+                
+            # Long content is usually more valuable
+            if len(content.split('\n')) > 100:
+                score += 5
+        
+        # For Python files
+        elif filename.endswith('.py'):
+            # Check for docstrings (triple quotes)
+            docstring_markers = content.count('"""') + content.count("'''")
+            if docstring_markers >= 2:  # At least one docstring
+                score += 5
+                
+            # Check for comments density
+            lines = content.split('\n')
+            comment_lines = sum(1 for line in lines if line.strip().startswith('#'))
+            if len(lines) > 0:
+                comment_ratio = comment_lines / len(lines)
+                if comment_ratio > 0.15:  # More than 15% comments
+                    score += 10
+                elif comment_ratio > 0.05:  # More than 5% comments
+                    score += 5
+                    
+            # Function and class definitions with docstrings are valuable
+            fn_class_count = 0
+            docstring_fn_count = 0
+            in_def = False
+            potential_docstring = False
+            
+            for i, line in enumerate(lines):
+                if line.strip().startswith('def ') or line.strip().startswith('class '):
+                    fn_class_count += 1
+                    in_def = True
+                    potential_docstring = True
+                elif in_def and potential_docstring and (line.strip().startswith('"""') or line.strip().startswith("'''")):
+                    docstring_fn_count += 1
+                    potential_docstring = False
+                elif in_def and line.strip() and not line.strip().startswith(' ') and not line.strip().startswith('#'):
+                    # End of function/class definition
+                    in_def = False
+                    potential_docstring = False
+            
+            if fn_class_count > 0:
+                docstring_ratio = docstring_fn_count / fn_class_count
+                if docstring_ratio > 0.7:  # More than 70% documented
+                    score += 15
+                elif docstring_ratio > 0.3:  # More than 30% documented
+                    score += 5
+        
+        # For Jupyter notebooks
+        elif filename.endswith('.ipynb'):
+            # Count markdown cells vs code cells
+            try:
+                import json
+                notebook = json.loads(content)
+                if 'cells' in notebook:
+                    cells = notebook['cells']
+                    markdown_cells = sum(1 for cell in cells if cell.get('cell_type') == 'markdown')
+                    code_cells = sum(1 for cell in cells if cell.get('cell_type') == 'code')
+                    
+                    # Notebooks with balanced markdown and code are highly valuable
+                    if markdown_cells > 5 and code_cells > 5:
+                        score += 15
+                    elif markdown_cells > 3:  # Some explanation
+                        score += 10
+                        
+                    # Long notebooks (many cells) often have more content
+                    if len(cells) > 20:
+                        score += 5
+            except:
+                # If we can't parse JSON, we can't analyze cell structure
+                pass
+    except Exception as e:
+        # If content analysis fails, log and continue with path-based score
+        logger.warning(f"Error during content analysis for {file_path}: {str(e)}")
+    
+    # Special case handling
+    # If it's a cookbook, example, or tutorial in the filename, boost score
+    if any(term in filename for term in ['cookbook', 'example', 'tutorial', 'guide', 'demo', 'howto']):
+        score += 10
+        
+    # If it's a well-known educational file pattern, boost score
+    common_educational_files = [
+        'getting_started', 'quickstart', 'introduction', 'overview',
+        'beginner', 'basics', 'installation', 'setup', 'configuration'
+    ]
+    if any(term in filename for term in common_educational_files):
+        score += 10
+    
+    # Low value files
+    low_value_patterns = [
+        '__pycache__', '.git', '.pyc', '.so', '.dll', '.exe', '.bin',
+        '.log', '.tmp', '.temp', '.swp', '.bak', '.cache'
+    ]
+    if any(pattern in file_path for pattern in low_value_patterns):
+        score = 10  # Very low score
+    
+    # Normalize score to 0-100 range
+    score = max(0, min(100, score))
+    
+    return int(score)
+
+def collect_valuable_files(session, repo_name, repo_info, max_files=50, test_mode=False, max_file_size=1024*1024):
+    """
+    Collect valuable files from a GitHub repository
+    
+    This function prioritizes collecting files with high educational value:
+    - Documentation directories and files
+    - Tutorials and examples
+    - Well-documented Python files
+    - Jupyter notebooks with explanations and code
+    
+    Args:
+        session: GitHub API session
+        repo_name: Repository name (owner/repo)
+        repo_info: Repository metadata
+        max_files: Maximum number of files to collect
+        test_mode: If True, print extra information for testing
+        max_file_size: Maximum file size in bytes to collect (default: 1MB)
+        
+    Returns:
+        List of dictionaries with file information
+    """
+    if not repo_name or not session:
+        return []
+    
+    valuable_files = []
+    visited_directories = set()
+    
+    # Priority directories to scan first (in order of importance)
+    priority_paths = [
+        "docs", "doc", "documentation", 
+        "examples", "tutorials", "guides", "cookbook",
+        "samples", "demo", "howto",
+        "notebooks", "jupyter", 
+        "."  # Root directory (for README and important root files)
+    ]
+    
+    # Store paths and their scores for prioritization
+    candidate_files = []
+    
+    # Number of files rejected due to size concerns
+    rejected_count = 0
+    
+    # First pass: scan priority directories
+    for path in priority_paths:
+        if test_mode:
+            logger.info(f"Scanning priority directory: {path}")
+        
+        try:
+            # Check if directory exists by requesting content
+            if path == ".":
+                contents = get_repo_contents(session, repo_name, "")
+            else:
+                contents = get_repo_contents(session, repo_name, path)
+                
+            if contents is None:
+                continue
+                
+            visited_directories.add(path)
+            
+            # Process files in this directory
+            for item in contents:
+                if item['type'] == 'dir':
+                    continue  # Skip directories in first pass
+                
+                # Check if this is a valuable file type
+                file_path = item['path']
+                file_ext = os.path.splitext(file_path)[1].lower()
+                
+                # Large files are skipped
+                if item['size'] > max_file_size:
+                    if test_mode:
+                        logger.info(f"Skipping large file: {file_path} ({item['size']} bytes)")
+                    rejected_count += 1
+                    continue
+                
+                # Skip files in SKIP_DIRECTORIES directories
+                if any(skip_dir in file_path.lower() for skip_dir in SKIP_DIRECTORIES):
+                    if test_mode:
+                        logger.info(f"Skipping file in ignored directory: {file_path}")
+                    continue
+                
+                # Skip files with extensions to ignore
+                if file_ext.lstrip('.') in SKIP_EXTENSIONS:
+                    if test_mode:
+                        logger.info(f"Skipping file with ignored extension: {file_path}")
+                    continue
+                
+                # Get file content for scoring
+                try:
+                    content_response = session.get(item['download_url'])
+                    if content_response.status_code != 200:
+                        if test_mode:
+                            logger.info(f"Failed to download {file_path}: HTTP {content_response.status_code}")
+                        continue
+                        
+                    content = content_response.text
+                    
+                    # Calculate file value score
+                    value_score = calculate_file_value_score(file_path, content, repo_info)
+                    
+                    if test_mode:
+                        logger.info(f"File: {file_path}, Value Score: {value_score}")
+                    
+                    # Process content based on file type
+                    processed_content = None
+                    if file_ext.lower() == '.ipynb':
+                        processed_content = process_notebook(content, repo_name, file_path)
+                    elif file_ext.lower() == '.py':
+                        processed_content = process_python_file(content, repo_name, file_path)
+                    elif file_ext.lower() in ['.md', '.rst', '.txt'] or os.path.basename(file_path).lower() == 'readme':
+                        processed_content = process_markdown(content, repo_name, file_path)
+                    
+                    # Add to candidate files if it has a value score above threshold or is processed
+                    if value_score >= 30 or processed_content:
+                        candidate_files.append({
+                            'path': file_path,
+                            'size': item['size'],
+                            'download_url': item['download_url'],
+                            'content': content,
+                            'processed_content': processed_content,
+                            'value_score': value_score,
+                            'priority': 1 if 'readme' in file_path.lower() or file_path.lower().endswith('.md') else 2
+                        })
+                        
+                except Exception as e:
+                    logger.error(f"Error processing {file_path}: {str(e)}")
+                    
+        except Exception as e:
+            logger.warning(f"Error getting contents of {path} in {repo_name}: {str(e)}")
+    
+    # Second pass: discover other valuable directories by scanning the root recursively
+    try:
+        dirs_to_visit = []
+        root_contents = get_repo_contents(session, repo_name, "")
+        
+        if root_contents:
+            for item in root_contents:
+                if item['type'] == 'dir':
+                    dir_path = item['path']
+                    # Skip already visited directories and known low-value dirs
+                    if (dir_path in visited_directories or 
+                        any(skip_dir in dir_path.lower() for skip_dir in SKIP_DIRECTORIES)):
+                        continue
+                    dirs_to_visit.append(dir_path)
+    
+        # Visit directories in breadth-first manner to find valuable files
+        while dirs_to_visit and len(candidate_files) < max_files * 2:  # Collect more than needed for better selection
+            current_dir = dirs_to_visit.pop(0)
+            if current_dir in visited_directories:
+                continue
+                
+            visited_directories.add(current_dir)
+            
+            try:
+                contents = get_repo_contents(session, repo_name, current_dir)
+                if not contents:
+                    continue
+                    
+                # First, add subdirectories to the visit queue
+                for item in contents:
+                    if item['type'] == 'dir':
+                        # Skip known low-value directories
+                        if any(skip_dir in item['path'].lower() for skip_dir in SKIP_DIRECTORIES):
+                            continue
+                        dirs_to_visit.append(item['path'])
+                    
+                # Then process files in this directory
+                for item in contents:
+                    if item['type'] != 'file':
+                        continue
+                        
+                    file_path = item['path']
+                    file_ext = os.path.splitext(file_path)[1].lower()
+                    
+                    # Skip large files
+                    if item['size'] > max_file_size:
+                        rejected_count += 1
+                        continue
+                        
+                    # Skip files with extensions to ignore
+                    if file_ext.lstrip('.') in SKIP_EXTENSIONS:
+                        continue
+                    
+                    # Quick scoring based on path only
+                    path_score = 0
+                    # Boost documentation files
+                    if any(d in file_path.lower() for d in ['readme', 'document', 'tutorial', 'example']):
+                        path_score = 60
+                    
+                    # High potential valuable files are downloaded and evaluated
+                    if path_score >= 30 or file_ext.lower() in ['.md', '.rst', '.ipynb', '.py']:
+                        try:
+                            content_response = session.get(item['download_url'])
+                            if content_response.status_code != 200:
+                                continue
+                                
+                            content = content_response.text
+                            
+                            # Calculate file value score with full content
+                            value_score = calculate_file_value_score(file_path, content, repo_info)
+                            
+                            # Process content based on file type
+                            processed_content = None
+                            if file_ext.lower() == '.ipynb':
+                                processed_content = process_notebook(content, repo_name, file_path)
+                            elif file_ext.lower() == '.py':
+                                processed_content = process_python_file(content, repo_name, file_path)
+                            elif file_ext.lower() in ['.md', '.rst', '.txt'] or os.path.basename(file_path).lower() == 'readme':
+                                processed_content = process_markdown(content, repo_name, file_path)
+                            
+                            # Add to candidate files if it has a good score or is processed
+                            if value_score >= 30 or processed_content:
+                                candidate_files.append({
+                                    'path': file_path,
+                                    'size': item['size'],
+                                    'download_url': item['download_url'],
+                                    'content': content,
+                                    'processed_content': processed_content,
+                                    'value_score': value_score,
+                                    'priority': 3  # Lower priority than priority directories
+                                })
+                        except Exception as e:
+                            logger.error(f"Error processing {file_path}: {str(e)}")
+                    
+            except Exception as e:
+                logger.warning(f"Error exploring directory {current_dir}: {str(e)}")
+                
+    except Exception as e:
+        logger.error(f"Error in second pass directory discovery: {str(e)}")
+    
+    # Sort candidate files by value score and priority
+    candidate_files.sort(key=lambda x: (-x['value_score'], x['priority']))
+    
+    # Select the top max_files
+    top_files = candidate_files[:max_files]
+    
+    # Convert to valuable_files format
+    for file_info in top_files:
+        valuable_files.append({
+            'path': file_info['path'],
+            'size': file_info['size'],
+            'download_url': file_info['download_url'],
+            'content': file_info['content'],
+            'processed_content': file_info['processed_content'],
+            'value_score': file_info['value_score']
+        })
+    
+    if test_mode:
+        logger.info(f"Collected {len(valuable_files)} valuable files")
+        logger.info(f"Rejected {rejected_count} files due to size")
+        
+    return valuable_files
+
+def collect_directory_files(session, repo_name, base_path, dir_contents, max_files=50, current_files=None):
+    """
+    Recursively collect files from a directory structure
+    
+    Args:
+        session: GitHub API session
+        repo_name: Repository name (owner/repo)
+        base_path: Base directory path
+        dir_contents: List of directory contents from GitHub API
+        max_files: Maximum number of files to collect
+        current_files: Currently collected files (for recursion)
+        
+    Returns:
+        List of collected file information
+    """
+    if current_files is None:
+        current_files = []
+        
+    if not dir_contents or len(current_files) >= max_files:
+        return current_files
+        
+    for item in dir_contents:
+        if len(current_files) >= max_files:
+            break
+            
+        item_path = item.get('path', '')
+        item_type = item.get('type', '')
+        
+        # Process directories recursively
+        if item_type == 'dir':
+            # Check if this is a valuable directory
+            if any(d in item_path.lower() for d in VALUABLE_DIRECTORIES):
+                sub_contents = get_repo_directory_structure(session, repo_name, item_path)
+                collect_directory_files(
+                    session, repo_name, item_path, sub_contents, 
+                    max_files, current_files
+                )
+        # Process files directly
+        elif item_type == 'file' and is_valuable_file(item):
+            content = collect_file_content(session, repo_name, item_path, item)
+            if content:
+                file_type = get_file_type(item_path)
+                processed_content = process_file_content(
+                    content, repo_name, item_path, file_type
+                )
+                
+                current_files.append({
+                    'path': item_path,
+                    'type': file_type,
+                    'content': content,
+                    'processed_content': processed_content,
+                    'size': item.get('size', 0)
+                })
+                
+    return current_files
+
+def deduplicate_content(content_list):
+    """
+    Remove duplicate or highly similar content
+    
+    Args:
+        content_list: List of content dictionaries
+        
+    Returns:
+        List of unique content dictionaries
+    """
+    unique_content = []
+    content_hashes = set()
+    
+    for content_item in content_list:
+        # Create a hash for the content
+        text = content_item.get('processed_content', '')
+        if not text:
+            text = content_item.get('content', '')
+        
+        if not text:
+            continue
+            
+        # Use a basic hash for now
+        content_hash = hashlib.md5(text.encode('utf-8')).hexdigest()
+        
+        # If we've seen this hash before, skip it
+        if content_hash in content_hashes:
+            continue
+            
+        content_hashes.add(content_hash)
+        unique_content.append(content_item)
+    
+    return unique_content
+
+def ensure_github_schema(conn):
+    """
+    Ensure the database schema supports GitHub repository storage
+    
+    Args:
+        conn: SQLite database connection
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    try:
+        cursor = conn.cursor()
+        
+        # Check if we're in an existing database that might have different column names
+        cursor.execute("PRAGMA table_info(github_repos)")
+        columns = {column[1]: True for column in cursor.fetchall()}
+        
+        # Check if the source_types table exists
+        cursor.execute("""
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name='source_types'
+        """)
+        
+        if not cursor.fetchone():
+            # Create source_types table
+            cursor.execute("""
+            CREATE TABLE source_types (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                description TEXT
+            )
+            """)
+            
+            # Insert default source types
+            cursor.execute("""
+            INSERT INTO source_types (name, description) VALUES
+                ('instagram', 'Instagram videos and posts'),
+                ('github', 'GitHub repositories and documentation'),
+                ('research_paper', 'Research papers from ArXiv and other sources')
+            """)
+        
+        # Check if ai_content table exists
+        cursor.execute("""
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name='ai_content'
+        """)
+        
+        if not cursor.fetchone():
+            # Create ai_content table
+            cursor.execute("""
+            CREATE TABLE ai_content (
+                id INTEGER PRIMARY KEY,
+                source_type_id INTEGER NOT NULL,
+                source_id TEXT NOT NULL,
+                title TEXT,
+                description TEXT,
+                content TEXT,
+                url TEXT,
+                date_created TEXT,
+                date_collected TEXT,
+                metadata TEXT,
+                is_indexed INTEGER DEFAULT 0,
+                UNIQUE(source_type_id, source_id)
+            )
+            """)
+        
+        # Check if github_repos table exists
+        cursor.execute("""
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name='github_repos'
+        """)
+        
+        if not cursor.fetchone():
+            # Create github_repos table
+            cursor.execute("""
+            CREATE TABLE github_repos (
+                id INTEGER PRIMARY KEY,
+                full_name TEXT NOT NULL UNIQUE,
+                name TEXT,
+                description TEXT,
+                url TEXT,
+                stars INTEGER DEFAULT 0,
+                forks INTEGER DEFAULT 0,
+                language TEXT,
+                topics TEXT,
+                value_score INTEGER DEFAULT 0,
+                created_at TEXT,
+                updated_at TEXT,
+                has_docs_directory INTEGER DEFAULT 0,
+                readme TEXT
+            )
+            """)
+            
+            # Create index on full_name
+            cursor.execute("""
+            CREATE UNIQUE INDEX idx_github_repos_full_name
+            ON github_repos (full_name)
+            """)
+        
+        # We don't need to add quality_score column to an existing table
+        # since we'll use value_score instead
+        
+        # Check if github_files table exists
+        cursor.execute("""
+            SELECT name FROM sqlite_master 
+            WHERE type='table' AND name='github_files'
+        """)
+        
+        if not cursor.fetchone():
+            # Create github_files table to track individual files
+            cursor.execute("""
+            CREATE TABLE github_files (
+                id INTEGER PRIMARY KEY,
+                repo_id INTEGER NOT NULL,
+                path TEXT NOT NULL,
+                file_type TEXT,
+                content TEXT,
+                processed_content TEXT,
+                size INTEGER DEFAULT 0,
+                last_updated TEXT,
+                FOREIGN KEY (repo_id) REFERENCES github_repos (id),
+                UNIQUE(repo_id, path)
+            )
+            """)
+            
+            # Create a compound index on repo_id and path
+            cursor.execute("""
+            CREATE UNIQUE INDEX idx_github_files_repo_path
+            ON github_files (repo_id, path)
+            """)
+        
+        conn.commit()
+        return True
+    
+    except Exception as e:
+        logger.error(f"Error ensuring GitHub schema: {str(e)}")
+        conn.rollback()
+        return False
+
+def collect_github_repos(github_token=None, max_repos=None, test_mode=False, single_repo=None, clean=False, bypass_proxy=False, max_file_size=MAX_FILE_SIZE):
+    """
+    Collect valuable content from GitHub repositories
+    
+    This function collects repositories with high educational value:
+    - Prioritizes repositories with good documentation, examples, tutorials
+    - Extracts well-documented code, Jupyter notebooks, Markdown content
+    - Scores repositories and files based on educational value
+    - Stores both in the database and filesystem
+    
+    Args:
+        github_token: GitHub API token
+        max_repos: Maximum repositories to collect (None for unlimited)
+        test_mode: If True, run in test mode with more verbose output
+        single_repo: If provided, only collect this specific repository
+        clean: If True, clean the output directory before starting
+        bypass_proxy: If True, bypass proxy settings
+        max_file_size: Maximum file size in bytes to collect
         
     Returns:
         Number of successfully processed repositories
     """
-    setup_directories()
+    # Set up directories and database
+    setup_directories(clean)
     
-    # Limit the number of repositories if specified
-    repos_to_process = GITHUB_REPOS
-    if max_repos is not None:
-        repos_to_process = GITHUB_REPOS[:max_repos]
+    # Connect to database
+    db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'knowledge_base.db')
+    conn = sqlite3.connect(db_path)
     
-    # Create GitHub API client
-    session = get_github_api_client(token)
+    # Ensure the schema exists
+    ensure_github_schema(conn)
     
-    # Process repositories
-    success_count = 0
+    # Set up GitHub session
+    if bypass_proxy:
+        os.environ['no_proxy'] = '*'
     
-    for repo_config in repos_to_process:
-        repo_name = repo_config['repo']
+    session = requests.Session()
+    if github_token:
+        session.headers.update({'Authorization': f'token {github_token}'})
+    
+    # Log information
+    if github_token:
+        logger.info("Using provided GitHub token - rate limit will be higher")
+    else:
+        token_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '.github_token')
+        if os.path.exists(token_path):
+            with open(token_path, 'r') as f:
+                saved_token = f.read().strip()
+                if saved_token:
+                    github_token = saved_token
+                    session.headers.update({'Authorization': f'token {github_token}'})
+                    logger.info("Using saved GitHub token from .github_token file")
         
-        try:
-            # Add a delay between requests to avoid rate limiting
-            time.sleep(random.uniform(1, 3))
+        if not github_token:
+            logger.warning("No GitHub token provided. API rate limits will be restricted.")
+            logger.info("To increase rate limits, provide a GitHub Personal Access Token.")
+            response = input("Would you like to provide a GitHub token now? (y/n): ")
+            if response.lower() == 'y':
+                token = input("Enter your GitHub Personal Access Token: ").strip()
+                if token:
+                    github_token = token
+                    session.headers.update({'Authorization': f'token {github_token}'})
+                    logger.info("Token accepted for this session.")
+                    
+                    save_response = input("Would you like to save this token for future use? (y/n): ")
+                    if save_response.lower() == 'y':
+                        with open(token_path, 'w') as f:
+                            f.write(token)
+                        logger.info(f"Token saved to {token_path}")
+    
+    # Get repositories to process
+    try:
+        if single_repo:
+            # Just process the specified repository
+            repos_to_process = [single_repo]
+            logger.info(f"Processing single repository: {single_repo}")
+        else:
+            # Get repositories from the GitHub API
+            repos_to_process = fetch_github_repositories(session, max_repos)
+            logger.info(f"Found {len(repos_to_process)} repositories to process")
+        
+        success_count = 0
+        for repo_idx, repo_name in enumerate(repos_to_process):
+            if max_repos and success_count >= max_repos:
+                logger.info(f"Reached maximum number of repositories ({max_repos})")
+                break
             
-            # Collect repository information
-            repo_info = collect_repo_info(session, repo_name)
+            try:
+                logger.info(f"Processing repository {repo_idx+1}/{len(repos_to_process)}: {repo_name}")
+                
+                # Get repository information
+                repo_info = get_repo_info(session, repo_name)
+                if not repo_info:
+                    logger.warning(f"Could not get information for repository {repo_name}")
+                    continue
+                
+                # Get repository README
+                readme_content = get_repo_readme(session, repo_name)
+                
+                # Save README content in repo_info for quality scoring
+                if readme_content:
+                    repo_info['readme_content'] = readme_content
+                
+                # Collect valuable files
+                valuable_files = collect_valuable_files(
+                    session, repo_name, repo_info, test_mode=test_mode, max_file_size=max_file_size
+                )
+                
+                # Calculate quality score after collecting files
+                quality_score = calculate_repo_quality_score(repo_info, valuable_files)
+                repo_info['quality_score'] = quality_score
+                
+                logger.info(f"Repository {repo_name} quality score: {quality_score}/100")
+                
+                # Only process repositories with good quality scores unless in test mode
+                if quality_score < 40 and not test_mode and not single_repo:
+                    logger.info(f"Repository {repo_name} quality score too low, skipping")
+                    continue
+                
+                # Store repository in database
+                store_success = store_repo_in_db(conn, repo_info, readme_content, valuable_files)
+                
+                # Store repository files in filesystem
+                fs_success = store_repo_files(repo_info, readme_content, valuable_files)
+                
+                if store_success and fs_success:
+                    success_count += 1
+                    logger.info(f"Successfully processed repository {repo_name}")
+                
+                # Add a delay to avoid hitting rate limits
+                if not test_mode and repo_idx < len(repos_to_process) - 1:
+                    time.sleep(2)
+                
+            except Exception as e:
+                logger.error(f"Error processing repository {repo_name}: {str(e)}")
+        
+        logger.info(f"Successfully processed {success_count} repositories")
+        return success_count
+        
+    except Exception as e:
+        logger.error(f"Error in repository collection process: {str(e)}")
+        return 0
+    finally:
+        # Close database connection
+        if conn:
+            conn.close()
+
+def process_markdown(content, repo_name="", file_path=""):
+    """
+    Process markdown content to extract valuable information
+    
+    This function enhances markdown files by:
+    - Formatting the content for better readability
+    - Extracting and structuring table of contents
+    - Preserving code examples
+    - Highlighting key educational sections
+    
+    Args:
+        content: Markdown content as string
+        repo_name: Repository name for context
+        file_path: File path for context
+        
+    Returns:
+        Processed markdown content
+    """
+    if not content:
+        return None
+        
+    header = f"# {repo_name}: {file_path}\n\n"
+    
+    try:
+        # Check if this is a README file
+        is_readme = 'readme' in file_path.lower()
+        
+        # Extract any title from the document itself
+        lines = content.split('\n')
+        document_title = None
+        
+        # Look for the first heading level 1 as the title
+        for line in lines:
+            if line.startswith('# '):
+                document_title = line[2:].strip()
+                break
+        
+        # If no title found, use the filename
+        if not document_title:
+            document_title = os.path.basename(file_path)
+            if document_title.lower() == 'readme.md':
+                document_title = f"{repo_name} README"
+        
+        # Extract table of contents if present
+        toc_marker_found = False
+        toc_start = -1
+        toc_end = -1
+        
+        for i, line in enumerate(lines):
+            lower_line = line.lower()
             
-            if not repo_info:
-                logger.warning(f"Failed to collect information for repository {repo_name}")
+            # Look for common TOC markers
+            if ('table of contents' in lower_line or 
+                '## contents' in lower_line or 
+                '## index' in lower_line or 
+                '## toc' in lower_line):
+                toc_marker_found = True
+                toc_start = i
                 continue
-            
-            # Collect README content
-            readme_content = collect_repo_readme(session, repo_name)
-            
-            # Process README content if available
-            if readme_content:
-                processed_readme = process_readme_content(readme_content, repo_name)
+                
+            # Once we found a TOC marker, find where it ends
+            if toc_marker_found and toc_start >= 0 and toc_end < 0:
+                # TOC ends when we hit a new heading or a blank line followed by a heading
+                if (line.startswith('#') or 
+                    (not line.strip() and i+1 < len(lines) and lines[i+1].startswith('#'))):
+                    toc_end = i
+                    break
+        
+        # If we found a TOC marker but no end, assume it goes to the end of the file
+        if toc_marker_found and toc_start >= 0 and toc_end < 0:
+            toc_end = len(lines)
+        
+        # Build a structured TOC if none was found
+        built_toc = []
+        if not toc_marker_found:
+            for i, line in enumerate(lines):
+                if line.startswith('#'):
+                    # Count the number of # to determine level
+                    level = 0
+                    for char in line:
+                        if char == '#':
+                            level += 1
+                        else:
+                            break
+                    
+                    if level > 0 and level <= 3:  # Only include headers up to level 3
+                        header_text = line[level:].strip()
+                        # Create slug for linking
+                        slug = header_text.lower().replace(' ', '-').replace('.', '').replace('(', '').replace(')', '')
+                        built_toc.append((level, header_text, slug))
+        
+        # Start building the processed content
+        processed_content = f"# {document_title}\n\n"
+        
+        # Add the built TOC if we have more than 3 headers
+        if built_toc and len(built_toc) > 3:
+            processed_content += "## Table of Contents\n\n"
+            for level, header_text, slug in built_toc:
+                indent = "  " * (level - 1)
+                processed_content += f"{indent}* [{header_text}](#{slug})\n"
+            processed_content += "\n"
+        
+        # Process sections for educational content
+        current_section = None
+        current_section_level = 0
+        current_section_content = []
+        educational_sections = []
+        
+        # Look for sections with educational value
+        educational_keywords = [
+            'introduction', 'getting started', 'quickstart', 'tutorial', 'guide',
+            'example', 'howto', 'how to', 'learn', 'usage', 'documentation',
+            'overview', 'concept', 'installation', 'setup'
+        ]
+        
+        # Process sections
+        for i, line in enumerate(lines):
+            # Skip lines in the original TOC
+            if toc_marker_found and toc_start <= i < toc_end:
+                continue
+                
+            # Check for section headers
+            if line.startswith('#'):
+                # If we were processing a section, save it
+                if current_section:
+                    section_content = '\n'.join(current_section_content)
+                    # Check if this section has educational value
+                    is_educational = False
+                    
+                    # Check section title against educational keywords
+                    section_lower = current_section.lower()
+                    if any(keyword in section_lower for keyword in educational_keywords):
+                        is_educational = True
+                    
+                    # Check for code examples
+                    if '```' in section_content or '    ' in section_content:
+                        is_educational = True
+                    
+                    # If educational, save it
+                    if is_educational:
+                        educational_sections.append((
+                            current_section_level,
+                            current_section,
+                            section_content
+                        ))
+                
+                # Start a new section
+                # Count the number of # to determine level
+                level = 0
+                for char in line:
+                    if char == '#':
+                        level += 1
+                    else:
+                        break
+                
+                current_section = line[level:].strip()
+                current_section_level = level
+                current_section_content = [line]
             else:
-                processed_readme = None
+                # Add line to current section content
+                if current_section:
+                    current_section_content.append(line)
+        
+        # Add the last section if there is one
+        if current_section:
+            section_content = '\n'.join(current_section_content)
+            section_lower = current_section.lower()
+            is_educational = any(keyword in section_lower for keyword in educational_keywords) or '```' in section_content
             
-            # Store repository in the database
-            if store_repo_in_db(repo_info, processed_readme):
-                success_count += 1
+            if is_educational:
+                educational_sections.append((
+                    current_section_level,
+                    current_section,
+                    section_content
+                ))
+        
+        # For READMEs with no educational sections, include the entire content
+        if is_readme and not educational_sections:
+            processed_content += content
+        else:
+            # Add educational sections to processed content
+            for level, title, content in educational_sections:
+                processed_content += f"{content}\n\n"
+        
+        return processed_content
+    
+    except Exception as e:
+        logger.error(f"Error processing markdown file {file_path}: {str(e)}")
+        return header + "Error processing markdown content."
+
+def fetch_github_repositories(session, max_repos=None):
+    """
+    Fetch GitHub repositories with high educational value
+    
+    This function searches for repositories with:
+    - Educational content (tutorials, examples, guides)
+    - Well-documented AI/ML libraries and frameworks
+    - Learning resources and course materials
+    
+    Args:
+        session: GitHub API session
+        max_repos: Maximum number of repositories to return
+        
+    Returns:
+        List of repository names (owner/repo format)
+    """
+    # Define search queries for educational repositories
+    search_queries = [
+        # Educational repositories
+        'tutorial stars:>100 language:python',
+        'example stars:>100 language:python',
+        'cookbook stars:>100 language:python',
+        'course stars:>100 language:python',
+        'learn stars:>100 language:python',
+        'workshop stars:>100 language:python',
+        'educational stars:>100 language:python',
+        
+        # AI/ML specific repositories
+        'machine learning tutorial stars:>100',
+        'deep learning examples stars:>100',
+        'neural network guide stars:>100',
+        'data science tutorial stars:>100',
+        'pytorch examples stars:>100',
+        'tensorflow tutorial stars:>100',
+        'nlp tutorial stars:>100',
+        'computer vision example stars:>100',
+        
+        # Well-documented libraries
+        'documentation stars:>500 language:python',
+        'guide stars:>500 language:python'
+    ]
+    
+    # Store unique repositories
+    repos = set()
+    
+    # Limit per query to avoid excessive API usage
+    per_query_limit = 10 if max_repos else 5
+    
+    for query in search_queries:
+        if max_repos and len(repos) >= max_repos:
+            break
             
-            logger.info(f"Successfully processed repository {repo_name}")
+        try:
+            logger.info(f"Searching GitHub with query: {query}")
+            
+            # Call GitHub search API
+            search_url = f"https://api.github.com/search/repositories?q={query}&sort=stars&order=desc"
+            response = session.get(search_url)
+            
+            # Check if we hit the rate limit
+            if response.status_code == 403 and 'rate limit exceeded' in response.text.lower():
+                logger.warning("GitHub API rate limit exceeded. Please try again later or use a token.")
+                break
+                
+            if response.status_code != 200:
+                logger.warning(f"Failed to search repositories with query '{query}'. Status code: {response.status_code}")
+                continue
+                
+            # Parse response
+            search_results = response.json()
+            items = search_results.get('items', [])
+            
+            # Take top results from this query
+            for item in items[:per_query_limit]:
+                repo_name = item.get('full_name')
+                if repo_name:
+                    repos.add(repo_name)
+                    
+            # Sleep between queries to avoid rate limiting
+            time.sleep(2)
             
         except Exception as e:
-            logger.error(f"Error processing repository {repo_name}: {str(e)}")
+            logger.warning(f"Error searching with query '{query}': {str(e)}")
     
-    logger.info(f"Completed GitHub repository collection. Processed {success_count}/{len(repos_to_process)} repositories.")
-    return success_count
+    # Convert to list and limit if needed
+    repo_list = list(repos)
+    if max_repos:
+        repo_list = repo_list[:max_repos]
+        
+    logger.info(f"Found {len(repo_list)} unique educational repositories")
+    return repo_list
+
+def get_repo_info(session, repo_name):
+    """
+    Get detailed information about a GitHub repository
+    
+    Args:
+        session: GitHub API session
+        repo_name: Repository name in owner/repo format
+        
+    Returns:
+        Dictionary with repository information or None if failed
+    """
+    try:
+        # Get repository information
+        repo_url = f"https://api.github.com/repos/{repo_name}"
+        response = session.get(repo_url)
+        
+        if response.status_code != 200:
+            logger.warning(f"Failed to get repository info for {repo_name}. Status code: {response.status_code}")
+            return None
+            
+        repo_info = response.json()
+        
+        # Get topics if available
+        if 'topics_url' in repo_info and repo_info['topics_url']:
+            topics_url = repo_info['topics_url'].replace('{/topic}', '')
+            topics_response = session.get(topics_url)
+            
+            if topics_response.status_code == 200:
+                topics_data = topics_response.json()
+                repo_info['topics'] = topics_data.get('names', [])
+            else:
+                repo_info['topics'] = []
+        
+        return repo_info
+        
+    except Exception as e:
+        logger.error(f"Error getting repository information for {repo_name}: {str(e)}")
+        return None
+
+
+def get_repo_readme(session, repo_name):
+    """
+    Get README content from a GitHub repository
+    
+    Args:
+        session: GitHub API session
+        repo_name: Repository name in owner/repo format
+        
+    Returns:
+        README content as string or None if failed
+    """
+    try:
+        # Try to get the README from GitHub API
+        readme_url = f"https://api.github.com/repos/{repo_name}/readme"
+        response = session.get(readme_url)
+        
+        if response.status_code != 200:
+            logger.warning(f"Failed to get README for {repo_name}. Status code: {response.status_code}")
+            return None
+            
+        readme_data = response.json()
+        
+        # If download_url is not available, try to decode content
+        if 'download_url' in readme_data and readme_data['download_url']:
+            content_response = session.get(readme_data['download_url'])
+            if content_response.status_code == 200:
+                return content_response.text
+        
+        # Fallback to decoding content if provided
+        if 'content' in readme_data and readme_data['content']:
+            import base64
+            try:
+                decoded_content = base64.b64decode(readme_data['content']).decode('utf-8')
+                return decoded_content
+            except Exception as decode_error:
+                logger.warning(f"Error decoding README content for {repo_name}: {str(decode_error)}")
+        
+        return None
+        
+    except Exception as e:
+        logger.error(f"Error getting README for {repo_name}: {str(e)}")
+        return None
+
+
+def get_repo_contents(session, repo_name, path=""):
+    """
+    Get contents of a directory in a GitHub repository
+    
+    Args:
+        session: GitHub API session
+        repo_name: Repository name in owner/repo format
+        path: Directory path within the repository
+        
+    Returns:
+        List of contents or None if failed
+    """
+    try:
+        # URL encode the path
+        encoded_path = requests.utils.quote(path)
+        contents_url = f"https://api.github.com/repos/{repo_name}/contents/{encoded_path}"
+        response = session.get(contents_url)
+        
+        if response.status_code != 200:
+            logger.warning(f"Failed to get contents for {repo_name}/{path}. Status code: {response.status_code}")
+            return None
+            
+        return response.json()
+        
+    except Exception as e:
+        logger.error(f"Error getting contents for {repo_name}/{path}: {str(e)}")
+        return None
 
 if __name__ == "__main__":
-    # Check for GitHub token
-    github_token = os.environ.get('GITHUB_TOKEN')
-    if not github_token:
-        logger.warning("No GITHUB_TOKEN environment variable found. API rate limits will be severely restricted.")
+    parser = argparse.ArgumentParser(description="Collect and process GitHub repositories with educational content")
+    parser.add_argument("--token", help="GitHub API token")
+    parser.add_argument("--max-repos", type=int, help="Maximum number of repositories to collect")
+    parser.add_argument("--test", metavar="REPO", help="Test with a single repository (format: owner/repo)")
+    parser.add_argument("--clean", action="store_true", help="Clean output directory before starting")
+    parser.add_argument("--bypass-proxy", action="store_true", help="Bypass proxy settings")
+    parser.add_argument("--test-mode", action="store_true", help="Run in test mode with more verbose output")
+    parser.add_argument("--quality-threshold", type=int, default=40, 
+                        help="Minimum quality score (0-100) for repositories to be collected")
+    parser.add_argument("--max-file-size", type=int, default=MAX_FILE_SIZE,
+                        help=f"Maximum file size in bytes to collect (default: {MAX_FILE_SIZE})")
+    parser.add_argument("--focus", choices=["tutorials", "documentation", "code", "all"], default="all",
+                        help="Focus collection on specific content types")
     
-    # Collect repositories
-    collect_github_repos(token=github_token) 
+    args = parser.parse_args()
+    
+    # Set content type focus if specified
+    if args.focus != "all":
+        logger.info(f"Focusing collection on {args.focus} content")
+        if args.focus == "tutorials":
+            VALUABLE_DIRECTORIES.extend(["tutorials", "examples", "guides", "samples"])
+        elif args.focus == "documentation":
+            VALUABLE_DIRECTORIES.extend(["docs", "documentation", "wiki"])
+        elif args.focus == "code":
+            VALUABLE_DIRECTORIES.extend(["src", "lib", "source"])
+    
+    # Call the main collection function with custom max file size
+    collect_github_repos(
+        github_token=args.token,
+        max_repos=args.max_repos,
+        test_mode=args.test_mode,
+        single_repo=args.test,
+        clean=args.clean,
+        bypass_proxy=args.bypass_proxy,
+        max_file_size=args.max_file_size
+    )
+    

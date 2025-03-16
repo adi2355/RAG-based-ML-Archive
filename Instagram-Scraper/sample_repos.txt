@@ -1,0 +1,8 @@
+# Sample repository list for batch processing
+# Format: owner/repo - One repository per line
+# Lines starting with # are treated as comments
+
+# Popular ML/AI frameworks - just a few for testing
+tensorflow/tensorflow
+pytorch/pytorch
+huggingface/transformers

@@ -1,0 +1,11 @@
+# Smaller test file with just 3 repositories for token testing
+# Format: owner/repo
+
+# Machine Learning
+huggingface/transformers
+
+# Computer Vision
+ultralytics/yolov5
+
+# Utility
+microsoft/DeepSpeed 

@@ -1,9 +1,7 @@
 ---
 description: Context Commands
-globs: 
-alwaysApply: true
+globs: *
 ---
-
 # Context File Commands
 
 Rules for handling special context file commands in conversations.
@@ -111,4 +109,4 @@ examples:
 metadata:
   priority: high
   version: 1.0
-</rule>
+</rule> 

@@ -1,9 +1,7 @@
 ---
 description: Chat Command Auto-Tracker
 globs: *
-alwaysApply: false
 ---
-
 # Chat Command Auto-Tracker
 
 Automatically detects and logs commands mentioned in chat conversations, without requiring explicit requests.
@@ -132,4 +130,4 @@ examples:
 metadata:
   priority: critical
   version: 1.0
-</rule>
+</rule> 

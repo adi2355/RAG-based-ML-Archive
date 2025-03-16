@@ -94,11 +94,15 @@ def run_downloader(force_refresh=False, use_auth=True):
     downloader.download_from_instagram(force_refresh=force_refresh, use_auth=use_auth)
     logger.info(f"Download completed in {time() - start_time:.2f} seconds")
 
-def run_transcriber():
+def run_transcriber(batch_size=16, extraction_workers=4, auto_batch_size=True):
     """Run the audio extraction and transcription"""
     logger.info("Starting audio extraction and transcription")
     start_time = time()
-    transcriber.process_videos()
+    transcriber.process_videos(
+        batch_size=batch_size,
+        extraction_workers=extraction_workers,
+        auto_batch_size=auto_batch_size
+    )
     logger.info(f"Transcription completed in {time() - start_time:.2f} seconds")
 
 def run_summarizer():
@@ -589,13 +593,24 @@ def run_answer_tests(dataset_id, search_type='hybrid', top_k=5, vector_weight=0.
     return True
 
 def parse_args():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--knowledge', action='store_true', help='Build or update the knowledge graph')
-    parser.add_argument('--embeddings', action='store_true', help='Generate embeddings for content')
-    parser.add_argument('--all', action='store_true', help='Execute all steps')
-    parser.add_argument('--visualize', action='store_true', help='Visualize the knowledge graph')
-    parser.add_argument('--papers', action='store_true', help='Collect papers from ArXiv')
-    parser.add_argument('--download-papers', action='store_true', help='Only download papers without processing them')
+    """Parse command line arguments"""
+    parser = argparse.ArgumentParser(description='Run Instagram Knowledge Base system')
+    
+    # Main operation groups
+    parser.add_argument('--knowledge', action='store_true', help='Build or update the knowledge base')
+    parser.add_argument('--embeddings', action='store_true', help='Generate and index embeddings')
+    parser.add_argument('--papers', action='store_true', help='Collect and process research papers')
+    parser.add_argument('--visualize', action='store_true', help='Run visualization tools')
+    parser.add_argument('--all', action='store_true', help='Run all main operations')
+    
+    # Add transcriber options
+    parser.add_argument('--transcribe', action='store_true', help='Run audio extraction and transcription')
+    parser.add_argument('--batch-size', type=int, default=16, help='Batch size for transcription')
+    parser.add_argument('--extraction-workers', type=int, default=4, help='Number of parallel audio extraction workers')
+    parser.add_argument('--auto-batch-size', action='store_true', help='Automatically determine optimal batch size')
+    
+    # Other arguments
+    parser.add_argument('--download-papers', action='store_true', help='Download papers without processing')
     parser.add_argument('--process-papers', action='store_true', help='Process previously downloaded papers')
     parser.add_argument('--max-papers', type=int, default=50, help='Maximum number of papers to process')
     parser.add_argument('--paper-url', type=str, help='Download a single paper from the provided URL')
@@ -621,6 +636,14 @@ def main():
 
     if args.visualize:
         run_visualizer(args)
+        
+    # Add support for transcriber
+    if args.transcribe:
+        run_transcriber(
+            batch_size=args.batch_size,
+            extraction_workers=args.extraction_workers,
+            auto_batch_size=args.auto_batch_size
+        )
 
     # The following if statements refer to arguments that no longer exist
     # Comment them out for now
