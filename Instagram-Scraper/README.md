@@ -214,48 +214,57 @@ ARXIV_MAX_RESULTS = 10  # Maximum results per category
 
 ## Advanced OCR with Mistral
 
-This project features enhanced PDF text extraction using the Mistral OCR API, providing superior quality text extraction compared to traditional methods:
+This project includes integration with Mistral OCR for enhanced PDF text extraction, providing:
 
-- **Enhanced Extraction Quality**: Mistral OCR delivers significantly better text extraction from PDFs with complex formatting, tables, and diagrams.
-- **Large PDF Support**: The implementation now handles PDFs of any size by automatically chunking large documents (>10MB) into smaller segments for processing.
-- **Reliable Processing**: Includes built-in retry logic and robust error handling to ensure successful extraction.
-- **Fallback Mechanism**: Automatically falls back to PyPDF2 extraction if Mistral OCR fails or is unavailable.
+- **Improved extraction quality** over traditional PDF parsers
+- **Support for large PDFs** through automatic chunking
+- **Batch processing capabilities** for efficient handling of multiple documents
+- **Automatic fallback** to PyPDF2 if Mistral OCR fails
 
-### Configuring Mistral OCR
+### Batch Processing Papers with Mistral OCR
 
-To use Mistral OCR, update the `config.py` file with the following settings:
+The system now supports a two-stage process for efficient paper processing:
 
-```python
-# Enable Mistral OCR
-USE_MISTRAL_OCR = True
+1. **Download-only mode**: Download papers without processing them
+   ```bash
+   python run.py --download-papers --max-papers 50
+   ```
 
-# Add your Mistral API key
-MISTRAL_API_KEY = "your_mistral_api_key"
+2. **Batch processing mode**: Process previously downloaded papers in batch
+   ```bash
+   python run.py --process-papers --max-papers 20
+   ```
 
-# Advanced configuration (optional)
-MISTRAL_OCR_CONFIG = {
-    "model": "mistral-large-pdf",  # OCR model to use
-    "fallback_to_pypdf": True,     # Fall back to PyPDF2 if OCR fails
-    "max_retries": 3,              # Maximum number of retry attempts
-    "sleep_time": 2,               # Wait time between retries (seconds)
-}
-```
+This separation allows you to:
+- Download papers during off-peak hours or when you have good internet
+- Process with Mistral OCR when you have API quota available
+- Resume processing if it was interrupted
+- Handle large collections of papers more efficiently
 
-### Usage with Paper Collection
+### Configuration
 
-When collecting papers, Mistral OCR will be used automatically if enabled:
-
-```bash
-python run.py --papers
-```
-
-For specific papers, add URLs to the `PAPER_URLS` list in `config.py`:
+Configure Mistral OCR in `config.py`:
 
 ```python
-PAPER_URLS = [
-    "https://example.com/paper.pdf",                # Direct PDF link
-    "https://example.com/paper-with-pdf-link.html", # Page containing PDF link
-]
+# Enable/disable Mistral OCR
+ENABLE_MISTRAL_OCR = True
+
+# Your Mistral API key
+MISTRAL_API_KEY = "your-api-key-here"
+
+# Model selection
+MISTRAL_MODEL = "mistral-large-latest"
+
+# Processing parameters
+MISTRAL_CHUNK_SIZE = 15000
+MISTRAL_MAX_RETRIES = 3
+MISTRAL_RETRY_DELAY = 2
+
+# Enable fallback to PyPDF2 if Mistral OCR fails
+MISTRAL_FALLBACK_TO_PYPDF = True
+
+# Batch processing settings
+BATCH_SIZE = 5
 ```
 
 ## Contributing

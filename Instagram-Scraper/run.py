@@ -158,16 +158,30 @@ def run_github_collector(max_repos=None):
     success_count = github_collector.collect_github_repos(max_repos=max_repos)
     logger.info(f"GitHub collection completed in {time() - start_time:.2f} seconds, processed {success_count} repositories")
 
-def run_papers_collector(max_papers=None, force_update=False):
-    """Run ArXiv research paper collection"""
-    if arxiv_collector is None:
-        logger.error(f"ArXiv collector module not available: {arxiv_collector_error}")
-        return
-    
-    logger.info("Starting ArXiv research paper collection")
-    start_time = time()
-    papers_added = arxiv_collector.collect_papers(max_papers=max_papers, force_update=force_update)
-    logger.info(f"ArXiv collection completed in {time() - start_time:.2f} seconds, added {papers_added} new papers")
+def run_papers_collector(args):
+    try:
+        import arxiv_collector
+        
+        if arxiv_collector is None:
+            logger.error("ArXiv collector module is not available")
+            return
+            
+        if args.paper_url:
+            logger.info(f"Downloading paper from URL: {args.paper_url}")
+            arxiv_collector.download_paper_from_url(args.paper_url)
+        elif args.download_papers:
+            logger.info(f"Downloading up to {args.max_papers} papers without processing")
+            arxiv_collector.download_papers_only(max_papers=args.max_papers)
+        elif args.process_papers:
+            logger.info(f"Processing previously downloaded papers (max: {args.max_papers})")
+            arxiv_collector.batch_process_pdfs(max_papers=args.max_papers)
+        else:
+            logger.info(f"Collecting up to {args.max_papers} papers")
+            arxiv_collector.collect_papers(max_papers=args.max_papers)
+    except Exception as e:
+        logger.error(f"Failed to run ArXiv collector: {e}")
+        import traceback
+        traceback.print_exc()
 
 def run_concept_extractor(limit=None, source_type=None, batch=False, batch_size=5, force=False):
     """Run concept extraction on content"""
@@ -574,112 +588,56 @@ def run_answer_tests(dataset_id, search_type='hybrid', top_k=5, vector_weight=0.
     logger.info(f"Results: {results}")
     return True
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--knowledge', action='store_true', help='Build or update the knowledge graph')
+    parser.add_argument('--embeddings', action='store_true', help='Generate embeddings for content')
+    parser.add_argument('--all', action='store_true', help='Execute all steps')
+    parser.add_argument('--visualize', action='store_true', help='Visualize the knowledge graph')
+    parser.add_argument('--papers', action='store_true', help='Collect papers from ArXiv')
+    parser.add_argument('--download-papers', action='store_true', help='Only download papers without processing them')
+    parser.add_argument('--process-papers', action='store_true', help='Process previously downloaded papers')
+    parser.add_argument('--max-papers', type=int, default=50, help='Maximum number of papers to process')
+    parser.add_argument('--paper-url', type=str, help='Download a single paper from the provided URL')
+    return parser.parse_args()
+
 def main():
     """Main function to parse arguments and run the system"""
-    parser = argparse.ArgumentParser(description='Instagram Knowledge Base System')
+    args = parse_args()
 
-    # Basic arguments
-    parser.add_argument('--download', action='store_true', help='Download content from Instagram')
-    parser.add_argument('--refresh-force', action='store_true', help='Force download regardless of refresh schedule')
-    parser.add_argument('--no-auth', action='store_true', help='Run Instagram download without authentication (reduces API limits but may help with some errors)')
-    parser.add_argument('--transcribe', action='store_true', help='Extract and transcribe audio from videos')
-    parser.add_argument('--summarize', action='store_true', help='Summarize transcripts using Claude')
-    parser.add_argument('--no-batch', action='store_true', help='Disable batch processing when summarizing (higher cost but potentially faster)')
-    parser.add_argument('--index', action='store_true', help='Index transcripts in the knowledge base')
-    parser.add_argument('--web', action='store_true', help='Run the web interface')
-    parser.add_argument('--port', type=int, default=5000, help='Port for the web interface (default: 5000)')
-    parser.add_argument('--debug', action='store_true', help='Run in debug mode')
-    parser.add_argument('--all', action='store_true', help='Run all steps')
+    if args.all:
+        args.knowledge = True
+        args.embeddings = True
+        args.papers = True
 
-    # Additional modules arguments
-    parser.add_argument('--migrate', action='store_true', help='Migrate database to support multiple content sources')
-    parser.add_argument('--github', action='store_true', help='Collect content from GitHub repositories')
-    parser.add_argument('--github-max', type=int, help='Maximum number of GitHub repositories to process')
-    parser.add_argument('--papers', action='store_true', help='Collect content from research papers')
-    parser.add_argument('--papers-max', type=int, help='Maximum number of papers to process')
-    parser.add_argument('--papers-force', action='store_true', help='Force update of existing papers')
+    if args.knowledge:
+        run_knowledge_builder(args)
 
-    # Concept extraction arguments
-    parser.add_argument('--concepts', action='store_true', help='Extract AI/ML concepts from content')
-    parser.add_argument('--concepts-limit', type=int, help='Maximum number of content items to process for concept extraction')
-    parser.add_argument('--concepts-source', help='Source type to process (instagram, github, research_paper)')
-    parser.add_argument('--concepts-batch', action='store_true', help='Process in batches')
-    parser.add_argument('--concepts-batch-size', type=int, default=5, help='Batch size for concept extraction')
-    parser.add_argument('--concepts-force', action='store_true', help='Force re-extraction of concepts')
-    
-    # Knowledge graph arguments
-    parser.add_argument('--kg-analyze', action='store_true', help='Analyze knowledge graph for statistics')
-    parser.add_argument('--kg-visualize', action='store_true', help='Visualize knowledge graph')
-    parser.add_argument('--kg-concept', type=int, help='Analyze a specific concept by ID')
-    parser.add_argument('--kg-search', help='Search for concepts matching term')
-    parser.add_argument('--kg-output-dir', help='Output directory for visualizations')
-    
-    # Embedding generation arguments
-    parser.add_argument('--embeddings', action='store_true', help='Generate embeddings for content')
-    parser.add_argument('--embeddings-source', help='Source type to process (instagram, github, research_paper)')
-    parser.add_argument('--embeddings-limit', type=int, help='Maximum number of content items to process for embeddings')
-    parser.add_argument('--embeddings-batch-size', type=int, default=50, help='Batch size for embedding generation')
-    parser.add_argument('--embeddings-chunk-size', type=int, default=500, help='Chunk size for embedding generation')
-    parser.add_argument('--embeddings-overlap', type=int, default=100, help='Chunk overlap for embedding generation')
-    parser.add_argument('--embeddings-force', action='store_true', help='Force re-generation of embeddings')
-    
-    # Search arguments
-    parser.add_argument('--search', help='Perform a vector search with the specified query')
-    parser.add_argument('--search-type', choices=['vector', 'hybrid', 'keyword'], default='hybrid', help='Type of search to perform')
-    parser.add_argument('--search-source', help='Source type to search (instagram, github, research_paper)')
-    parser.add_argument('--top-k', type=int, default=5, help='Number of results to return')
-    parser.add_argument('--vector-weight', type=float, default=0.7, help='Weight for vector search (0-1)')
-    parser.add_argument('--keyword-weight', type=float, default=0.3, help='Weight for keyword search (0-1)')
-    parser.add_argument('--in-memory', action='store_true', help='Use in-memory index for vector search')
-    
-    # RAG arguments
-    parser.add_argument('--rag-query', help='Use RAG to answer the specified query')
-    parser.add_argument('--rag-model', help='Model to use for RAG (default is claude-3-sonnet-20240229)')
-    parser.add_argument('--rag-tokens-context', type=int, default=4000, help='Maximum tokens to include in context')
-    parser.add_argument('--rag-tokens-answer', type=int, default=1000, help='Maximum tokens for answer generation')
-    parser.add_argument('--rag-temperature', type=float, default=0.5, help='Temperature for answer generation')
-    parser.add_argument('--rag-stream', action='store_true', help='Stream the response')
-    
-    # Evaluation arguments
-    parser.add_argument('--evaluation-dashboard', action='store_true', help='Run the evaluation dashboard')
-    parser.add_argument('--evaluation-port', type=int, default=5050, help='Port for the evaluation dashboard')
-    parser.add_argument('--create-test-dataset', action='store_true', help='Create a test dataset for RAG evaluation')
-    parser.add_argument('--concept-queries', type=int, default=15, help='Number of concept queries to generate')
-    parser.add_argument('--content-queries', type=int, default=10, help='Number of content queries to generate')
-    parser.add_argument('--evaluation-tests', type=int, help='Run retrieval tests on the specified dataset ID')
-    parser.add_argument('--answer-tests', type=int, help='Run answer quality tests on the specified dataset ID')
-    parser.add_argument('--max-queries', type=int, default=10, help='Maximum number of queries to test for answer quality')
-    
-    # API and web interface arguments
-    parser.add_argument('--api', action='store_true', help='Run only the API server')
-    parser.add_argument('--api-port', type=int, default=5000, help='Port for the API server')
-    
-    args = parser.parse_args()
-    
-    setup()
-    
-    # First run migrations if needed
-    if args.migrate or args.all:
-        run_db_migration()
+    if args.embeddings:
+        run_embeddings_generator(args)
 
-    # Then collect content if requested
-    if args.download or args.all:
+    if args.papers or args.download_papers or args.process_papers or args.paper_url:
+        run_papers_collector(args)
+
+    if args.visualize:
+        run_visualizer(args)
+
+    # The following if statements refer to arguments that no longer exist
+    # Comment them out for now
+    """
+    if args.download:
         run_downloader(force_refresh=args.refresh_force, use_auth=not args.no_auth)
     
-    if args.github or args.all:
+    if args.github:
         run_github_collector(args.github_max)
         
-    if args.papers or args.all:
-        run_papers_collector(args.papers_max, args.papers_force)
-
-    # Then process content
-    if args.transcribe or args.all:
+    if args.transcribe:
         run_transcriber()
     
-    if args.summarize or args.all:
+    if args.summarize:
         run_summarizer()
         
-    if args.concepts or args.all:
+    if args.concepts:
         run_concept_extractor(
             limit=args.concepts_limit, 
             source_type=args.concepts_source,
@@ -694,37 +652,9 @@ def main():
         else:
             logger.error("Knowledge graph module not available")
     
-    if args.kg_visualize:
-        if has_knowledge_graph:
-            run_knowledge_graph(visualize=True, output_dir=args.kg_output_dir)
-        else:
-            logger.error("Knowledge graph module not available")
-            
-    if args.kg_concept:
-        if has_knowledge_graph:
-            run_knowledge_graph(concept_id=args.kg_concept, output_dir=args.kg_output_dir)
-        else:
-            logger.error("Knowledge graph module not available")
-            
-    if args.kg_search:
-        if has_knowledge_graph:
-            run_knowledge_graph(search_term=args.kg_search, output_dir=args.kg_output_dir)
-        else:
-            logger.error("Knowledge graph module not available")
-
-    if args.embeddings or args.all:
-        run_embedding_generation(
-            source_type=args.embeddings_source, 
-            limit=args.embeddings_limit, 
-            batch_size=args.embeddings_batch_size,
-            chunk_size=args.embeddings_chunk_size,
-            chunk_overlap=args.embeddings_overlap,
-            force=args.embeddings_force
-        )
-
-    if args.index or args.all:
+    if args.index:
         run_indexer()
-        
+    
     # Handle search-related arguments
     if args.search:
         if args.search_type == 'vector':
@@ -803,6 +733,7 @@ def main():
         
     if args.web or args.all:
         run_web_interface(port=args.port, debug=args.debug)
+    """
 
 if __name__ == "__main__":
     main() 

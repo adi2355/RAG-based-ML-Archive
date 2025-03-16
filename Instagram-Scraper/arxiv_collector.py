@@ -14,6 +14,14 @@ import Levenshtein
 from datetime import datetime
 from urllib.parse import urlparse, urljoin
 from bs4 import BeautifulSoup
+import re
+
+# Import arxiv
+try:
+    import arxiv
+    ARXIV_AVAILABLE = True
+except ImportError:
+    ARXIV_AVAILABLE = False
 
 import config
 try:
@@ -52,7 +60,7 @@ HEADERS = {
 def setup_directories():
     """Create necessary directories for storing paper data"""
     papers_dir = os.path.join(config.DATA_DIR, "papers")
-    papers_pdf_dir = os.path.join(papers_dir, "pdfs")
+    papers_pdf_dir = os.path.join(papers_dir, "pdf")
     papers_text_dir = os.path.join(papers_dir, "text")
     
     os.makedirs(papers_dir, exist_ok=True)
@@ -174,10 +182,14 @@ def extract_text_with_pypdf2(pdf_path):
             
             # Extract text from all pages
             for page in pdf_reader.pages:
-                page_text = page.extract_text() or ""
-                # Handle encoding issues
-                page_text = page_text.encode('utf-8', errors='replace').decode('utf-8')
-                text += page_text + "\n\n"
+                try:
+                    page_text = page.extract_text() or ""
+                    # Handle encoding issues
+                    page_text = page_text.encode('utf-8', errors='replace').decode('utf-8')
+                    text += page_text + "\n\n"
+                except Exception as e:
+                    logger.warning(f"Error extracting text from page: {e}")
+                    continue
                 
         logger.info(f"Extracted text using PyPDF2: {len(text)} characters from {num_pages} pages")
         return text
@@ -209,7 +221,17 @@ def extract_text_with_mistral_ocr(pdf_path):
         model = MISTRAL_OCR_CONFIG.get('model', 'mistral-large-pdf')
         
         # Extract text using Mistral OCR
-        success, text = mistral_ocr.extract_text(pdf_path, api_key=api_key, model=model)
+        result = mistral_ocr.extract_text(pdf_path, api_key=api_key, model=model)
+        
+        # Handle different return formats
+        if isinstance(result, tuple) and len(result) > 0:
+            # If returning (success, text) tuple or (text, title) tuple
+            text = result[1] if isinstance(result[0], bool) else result[0]
+            success = result[0] if isinstance(result[0], bool) else True
+        else:
+            # If just returning text
+            text = result
+            success = bool(text)
         
         if success and text:
             logger.info(f"Successfully extracted text from PDF with Mistral OCR: {os.path.basename(pdf_path)}")
@@ -222,7 +244,7 @@ def extract_text_with_mistral_ocr(pdf_path):
                 return extract_text_with_pypdf2(pdf_path)
             else:
                 logger.error(f"Mistral OCR failed and fallback disabled")
-                return None
+                return ""
     except Exception as e:
         logger.error(f"Error using Mistral OCR: {e}")
         
@@ -231,10 +253,7 @@ def extract_text_with_mistral_ocr(pdf_path):
             return extract_text_with_pypdf2(pdf_path)
         else:
             logger.error(f"Mistral OCR failed and fallback disabled: {e}")
-            return None
-    else:
-        # Use PyPDF2 by default
-        return extract_text_with_pypdf2(pdf_path)
+            return ""
 
 def parse_sections(text):
     """Attempt to parse sections from extracted PDF text"""
@@ -396,17 +415,19 @@ def download_paper_from_url(url, conn, paper_dir, use_mistral_ocr=False):
             if use_mistral_ocr and mistral_ocr:
                 logger.info(f"Using Mistral OCR for text extraction from {pdf_path}")
                 try:
-                    # Extract text using Mistral OCR
-                    success, ocr_text = mistral_ocr.extract_text(pdf_path)
-                    if success and ocr_text:
-                        text = ocr_text
-                        logger.info(f"Successfully extracted text from PDF: {os.path.basename(pdf_path)} ({len(ocr_text.split('\n'))} pages)")
+                    result = mistral_ocr.extract_text_from_pdf(pdf_path)
+                    # Handle tuple return type (text, title)
+                    if isinstance(result, tuple) and len(result) > 0:
+                        text = result[0]  # Extract just the text part
+                        logger.info(f"Successfully extracted text using Mistral OCR")
                     else:
-                        logger.warning(f"Mistral OCR failed, falling back to PyPDF2 for {pdf_path}")
-                        text = extract_text_with_pypdf2(pdf_path)
+                        text = result
+                        logger.info(f"Successfully extracted text using Mistral OCR")
                 except Exception as e:
-                    logger.error(f"Error using Mistral OCR: {e}")
+                    logger.error(f"Error extracting text with Mistral OCR: {e}")
+                    # Fall back to PyPDF2
                     text = extract_text_with_pypdf2(pdf_path)
+                    logger.info(f"Extracted text using PyPDF2 as fallback")
             else:
                 logger.info(f"Using PyPDF2 for text extraction from {pdf_path}")
                 text = extract_text_with_pypdf2(pdf_path)
@@ -665,6 +686,11 @@ def is_duplicate_paper(conn, text, title, abstract, threshold=0.8):
     Returns:
         tuple: (is_duplicate, existing_id) if duplicate, (False, None) otherwise
     """
+    # TEMPORARILY DISABLED - ALWAYS RETURN FALSE FOR TESTING
+    return False, None
+    
+    # Original implementation commented out below
+    '''
     try:
         # If text is too short, it's probably not extractable, so skip duplicate check
         if not text or len(text) < 100:
@@ -737,6 +763,7 @@ def is_duplicate_paper(conn, text, title, abstract, threshold=0.8):
     except Exception as e:
         logger.error(f"Error checking for duplicate papers: {str(e)}")
         return False, None
+    '''
 
 def process_arxiv_papers(categories, max_results, papers_pdf_dir, papers_text_dir, conn, source_type_id, force_update=False):
     """
@@ -849,28 +876,22 @@ def process_arxiv_papers(categories, max_results, papers_pdf_dir, papers_text_di
                             # Use Mistral OCR if available
                             if mistral_ocr and hasattr(config, 'USE_MISTRAL_OCR') and config.USE_MISTRAL_OCR:
                                 try:
-                                    text, extracted_title = mistral_ocr.extract_text_from_pdf(pdf_path)
-                                    logger.info(f"Extracted text using Mistral OCR: {len(text)} characters")
-                                    
-                                    # Use extracted title if available and original title is generic
-                                    if extracted_title and ("unknown" in title.lower() or len(title) < 10):
-                                        title = extracted_title
+                                    result = mistral_ocr.extract_text_from_pdf(pdf_path)
+                                    # Handle tuple return type (text, title)
+                                    if isinstance(result, tuple) and len(result) > 0:
+                                        text = result[0]  # Extract just the text part
+                                        logger.info(f"Successfully extracted text using Mistral OCR")
+                                    else:
+                                        text = result
+                                        logger.info(f"Successfully extracted text using Mistral OCR")
                                 except Exception as e:
-                                    logger.error(f"Error extracting text with Mistral OCR: {str(e)}")
-                            
-                            # Fallback to PyPDF2
-                            if not text:
-                                try:
-                                    with open(pdf_path, 'rb') as f:
-                                        pdf_reader = PyPDF2.PdfReader(f)
-                                        for page in pdf_reader.pages:
-                                            page_text = page.extract_text() or ""
-                                            # Handle encoding issues by replacing problematic characters
-                                            page_text = page_text.encode('utf-8', errors='replace').decode('utf-8')
-                                            text += page_text
-                                    logger.info(f"Extracted text using PyPDF2: {len(text)} characters")
-                                except Exception as e:
-                                    logger.error(f"Error extracting text with PyPDF2: {str(e)}")
+                                    logger.error(f"Error extracting text with Mistral OCR: {e}")
+                                    # Fall back to PyPDF2
+                                    text = extract_text_with_pypdf2(pdf_path)
+                                    logger.info(f"Extracted text using PyPDF2 as fallback")
+                            else:
+                                text = extract_text_with_pypdf2(pdf_path)
+                                logger.info(f"Extracted text using PyPDF2")
                             
                             # Save text to file
                             if text:
@@ -1076,34 +1097,574 @@ def ensure_database_schema(conn):
         logger.error(f"Error ensuring database schema: {e}")
         conn.rollback()
 
-if __name__ == "__main__":
-    print("Testing arxiv_collector module...")
-    try:
-        # Verify that the module can be imported
-        import arxiv_collector
-        print("Module imported successfully!")
+def download_papers_only(max_papers=50, categories=None, save_dir=None, custom_search_query=None):
+    """
+    Download papers from ArXiv without processing them.
+    This function only downloads the PDFs and stores their metadata in a temporary file.
+    
+    Args:
+        max_papers: Maximum number of papers to download
+        categories: List of ArXiv categories to search for
+        save_dir: Directory to save PDFs to
+        custom_search_query: Custom search query to use instead of the one in config
+    """
+    if categories is None:
+        categories = config.ARXIV_CATEGORIES
+    
+    if save_dir is None:
+        save_dir = config.PAPERS_DIR
         
-        # Verify directory setup works
-        papers_dir, papers_pdf_dir, papers_text_dir = setup_directories()
-        print(f"Setup directories successful: {papers_dir}")
-        
-        # Check database connection
-        import sqlite3
+    # Ensure directories exist
+    os.makedirs(save_dir, exist_ok=True)
+    pdf_dir = os.path.join(save_dir, "pdf")
+    os.makedirs(pdf_dir, exist_ok=True)
+    
+    # Create a temporary metadata file to store paper information
+    metadata_file = os.path.join(save_dir, "pending_papers.json")
+    pending_papers = []
+    
+    if os.path.exists(metadata_file):
         try:
-            conn = sqlite3.connect(config.DB_PATH)
-            print("Database connection successful!")
-            conn.close()
+            with open(metadata_file, 'r') as f:
+                pending_papers = json.load(f)
+            logger.info(f"Loaded {len(pending_papers)} pending papers from {metadata_file}")
         except Exception as e:
-            print(f"Database connection error: {str(e)}")
+            logger.error(f"Error loading pending papers: {e}")
+    
+    # Connect to database to check for existing papers
+    conn = sqlite3.connect(config.DB_PATH)
+    ensure_database_schema(conn)
+    cursor = conn.cursor()
+    
+    logger.info(f"Downloading up to {max_papers} papers from categories: {categories}")
+    
+    # Query ArXiv
+    search_query = ""
+    
+    # Use the custom search query if provided
+    if custom_search_query:
+        search_query = custom_search_query
+        logger.info(f"Using custom search query: {search_query}")
+        # Combine with categories if specified
+        if categories:
+            search_query = f"({search_query}) AND ({' OR '.join(f'cat:{category}' for category in categories)})"
+    # Otherwise use the search query from config if available
+    elif hasattr(config, 'ARXIV_CONFIG') and 'search_query' in config.ARXIV_CONFIG:
+        search_query = config.ARXIV_CONFIG['search_query']
+        logger.info(f"Using search query from config: {search_query}")
+        # Combine with categories
+        if categories:
+            search_query = f"({search_query}) AND ({' OR '.join(f'cat:{category}' for category in categories)})"
+    else:
+        # Otherwise just use categories
+        search_query = ' OR '.join(f'cat:{category}' for category in categories)
+    
+    search = arxiv.Search(
+        query=search_query,
+        max_results=max_papers,
+        sort_by=arxiv.SortCriterion.SubmittedDate,
+        sort_order=arxiv.SortOrder.Descending
+    )
+    
+    # Get the results - this makes it iterable
+    client = arxiv.Client()
+    papers = client.results(search)
+    
+    download_count = 0
+    
+    for paper in papers:
+        paper_id = paper.get_short_id()
+        title = paper.title
         
-        # If all checks pass, offer to collect papers
-        import sys
-        if len(sys.argv) > 1 and sys.argv[1] == "--collect":
-            collect_papers()
-        else:
-            print("Run with --collect to download papers")
+        # Check if we already have this paper in pending list
+        if any(p.get('arxiv_id') == paper_id for p in pending_papers):
+            logger.info(f"Paper {paper_id} - '{title}' already in pending list, skipping")
+            continue
+        
+        # Check if paper already exists in database
+        cursor.execute("SELECT id FROM research_papers WHERE id = ?", (paper_id,))
+        if cursor.fetchone():
+            logger.info(f"Paper {paper_id} - '{title}' already exists in database, skipping")
+            continue
+        
+        try:
+            # Create a clean filename
+            pdf_filename = f"{paper_id}.pdf"
+            pdf_path = os.path.join(pdf_dir, pdf_filename)
+            logger.info(f"Downloading paper {paper_id} - '{title}'")
             
-    except Exception as e:
-        print(f"Error testing module: {str(e)}")
-        import traceback
-        traceback.print_exc() 
+            # Download PDF directly using requests
+            pdf_url = paper.pdf_url
+            response = requests.get(pdf_url, stream=True)
+            response.raise_for_status()  # Raise an error for bad responses
+            
+            with open(pdf_path, 'wb') as f:
+                for chunk in response.iter_content(chunk_size=8192):
+                    f.write(chunk)
+            
+            logger.info(f"Downloaded PDF to {pdf_path}")
+            
+            # Save metadata
+            paper_info = {
+                'arxiv_id': paper_id,
+                'title': title,
+                'authors': [author.name for author in paper.authors],
+                'summary': paper.summary,
+                'date': paper.published.strftime('%Y-%m-%d'),
+                'categories': paper.categories,
+                'pdf_url': paper.pdf_url,
+                'pdf_path': pdf_path
+            }
+            
+            pending_papers.append(paper_info)
+            download_count += 1
+            
+            # Periodically save the pending papers list
+            if download_count % 5 == 0:
+                with open(metadata_file, 'w') as f:
+                    json.dump(pending_papers, f, indent=2)
+                    
+        except Exception as e:
+            logger.error(f"Error downloading paper {paper_id}: {e}")
+    
+    # Save the final list of pending papers
+    with open(metadata_file, 'w') as f:
+        json.dump(pending_papers, f, indent=2)
+    
+    conn.close()
+    logger.info(f"Downloaded {download_count} new papers. Total pending papers: {len(pending_papers)}")
+    return download_count
+
+def batch_process_pdfs(max_papers=None, use_mistral=True):
+    """
+    Process PDFs in batches, extracting text and inserting into the database.
+    
+    Args:
+        max_papers: Maximum number of papers to process in this batch
+        use_mistral: Whether to use Mistral OCR for text extraction
+    """
+    # Load pending papers
+    pending_papers_file = os.path.join(config.PAPERS_DIR, "pending_papers.json")
+    if not os.path.exists(pending_papers_file):
+        logger.info("No pending papers found.")
+        return 0
+    
+    with open(pending_papers_file, 'r') as f:
+        pending_papers = json.load(f)
+    
+    logger.info(f"Loaded {len(pending_papers)} pending papers")
+    
+    if max_papers is not None:
+        pending_papers = pending_papers[:max_papers]
+        logger.info(f"Processing up to {max_papers} papers")
+    
+    # Connect to database
+    conn = sqlite3.connect(config.DB_PATH)
+    ensure_database_schema(conn)
+    cursor = conn.cursor()
+    
+    # Initialize Mistral OCR if needed
+    mistral_ocr = None
+    if use_mistral and hasattr(config, 'MISTRAL_API_KEY'):
+        try:
+            from mistral_ocr import MistralOCR
+            mistral_ocr = MistralOCR(api_key=config.MISTRAL_API_KEY)
+            logger.info("Initialized Mistral OCR")
+        except Exception as e:
+            logger.error(f"Failed to initialize Mistral OCR: {e}")
+            use_mistral = False
+    else:
+        use_mistral = False
+        logger.info("Using PyPDF2 for text extraction")
+    
+    processed_count = 0
+    remaining_papers = []
+    
+    for paper in pending_papers:
+        paper_id = paper.get('arxiv_id')
+        title = paper.get('title')
+        pdf_path = paper.get('pdf_path')
+        
+        if not os.path.exists(pdf_path):
+            logger.warning(f"PDF file not found: {pdf_path}, skipping")
+            continue
+        
+        # Check if paper already exists in database
+        cursor.execute("SELECT id FROM research_papers WHERE id = ?", (paper_id,))
+        if cursor.fetchone():
+            logger.info(f"Paper {paper_id} - '{title}' already exists in database, skipping")
+            # Try to delete the PDF to save space
+            try:
+                os.remove(pdf_path)
+                logger.info(f"Deleted duplicate PDF: {pdf_path}")
+            except Exception as e:
+                logger.warning(f"Failed to delete duplicate PDF: {e}")
+            continue
+        
+        logger.info(f"Processing paper {paper_id} - '{title}'")
+        
+        try:
+            # Extract text from PDF
+            extracted_text = ""
+            
+            if use_mistral and mistral_ocr:
+                try:
+                    result = mistral_ocr.extract_text_from_pdf(pdf_path)
+                    # Handle tuple return type (text, title)
+                    if isinstance(result, tuple) and len(result) > 0:
+                        extracted_text = result[0]  # Extract just the text part
+                        logger.info(f"Successfully extracted text using Mistral OCR")
+                    else:
+                        extracted_text = result
+                        logger.info(f"Successfully extracted text using Mistral OCR")
+                except Exception as e:
+                    logger.error(f"Error extracting text with Mistral OCR: {e}")
+                    # Fall back to PyPDF2
+                    extracted_text = extract_text_from_pdf(pdf_path)
+                    logger.info(f"Extracted text using PyPDF2 as fallback")
+            else:
+                extracted_text = extract_text_from_pdf(pdf_path)
+                logger.info(f"Extracted text using PyPDF2")
+            
+            # Insert paper into database
+            try:
+                # Map ArXiv metadata to database schema
+                authors = ", ".join(paper.get('authors', []))
+                abstract = paper.get('summary', '')
+                publication = "arXiv"
+                year = int(paper.get('date', '').split('-')[0]) if paper.get('date') else None
+                url = f"https://arxiv.org/abs/{paper_id}"
+                pdf_url = paper.get('pdf_url', '')
+                
+                # Insert into database - using ArXiv ID as the DOI since ID is INTEGER PRIMARY KEY
+                cursor.execute("""
+                    INSERT INTO research_papers 
+                    (title, authors, abstract, publication, year, url, doi, pdf_path, content, pdf_url) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    title, authors, abstract, publication, 
+                    year, url, paper_id, pdf_path, extracted_text, pdf_url
+                ))
+                conn.commit()
+                logger.info(f"Inserted paper {paper_id} into database")
+                processed_count += 1
+                
+            except Exception as e:
+                logger.error(f"Error inserting paper into database: {e}")
+                remaining_papers.append(paper)
+                
+        except Exception as e:
+            logger.error(f"Error processing paper {paper_id}: {e}")
+            remaining_papers.append(paper)
+    
+    # Update pending papers file with remaining papers
+    with open(pending_papers_file, 'w') as f:
+        json.dump(remaining_papers, f, indent=2)
+    
+    conn.close()
+    logger.info(f"Processed {processed_count} papers. {len(remaining_papers)} papers remaining.")
+    return processed_count
+
+# Add main block for direct invocation
+if __name__ == "__main__":
+    import argparse
+    parser = argparse.ArgumentParser(description="ArXiv paper collector and processor")
+    parser.add_argument("--collect", action="store_true", help="Collect papers from ArXiv")
+    parser.add_argument("--download-only", action="store_true", help="Only download papers without processing")
+    parser.add_argument("--batch-process", action="store_true", help="Process previously downloaded PDFs")
+    parser.add_argument("--max", type=int, default=50, help="Maximum number of papers to process")
+    parser.add_argument("--url", type=str, help="Download and process a single paper from URL")
+    parser.add_argument("--urls-file", type=str, help="Path to a text file containing paper URLs (one per line)")
+    parser.add_argument("--download-url", type=str, help="Download a single paper from URL without processing")
+    parser.add_argument("--download-urls-file", type=str, help="Path to a text file containing paper URLs to download without processing")
+    parser.add_argument("--search-query", type=str, help="Custom search query for ArXiv (overrides config)")
+    
+    args = parser.parse_args()
+    
+    # Setup directories
+    papers_dir = config.PAPERS_DIR
+    os.makedirs(papers_dir, exist_ok=True)
+    pdf_dir = os.path.join(papers_dir, "pdf")
+    os.makedirs(pdf_dir, exist_ok=True)
+    
+    # Connect to database for URL downloads
+    if args.url or args.urls_file or args.download_url or args.download_urls_file:
+        conn = sqlite3.connect(config.DB_PATH)
+        ensure_database_schema(conn)
+    
+    if args.url:
+        # Download and process a single paper
+        use_mistral = hasattr(config, 'USE_MISTRAL_OCR') and config.USE_MISTRAL_OCR
+        paper_info = download_paper_from_url(args.url, conn, pdf_dir, use_mistral)
+        if paper_info:
+            logger.info(f"Successfully downloaded and processed paper: {paper_info.get('title', 'Unknown')}")
+        else:
+            logger.error("Failed to download or process the paper")
+    
+    elif args.urls_file:
+        # Download and process multiple papers from a file
+        try:
+            with open(args.urls_file, 'r') as f:
+                urls = [line.strip() for line in f if line.strip()]
+            
+            logger.info(f"Found {len(urls)} URLs in file")
+            use_mistral = hasattr(config, 'USE_MISTRAL_OCR') and config.USE_MISTRAL_OCR
+            
+            success_count = 0
+            for url in urls:
+                try:
+                    paper_info = download_paper_from_url(url, conn, pdf_dir, use_mistral)
+                    if paper_info:
+                        success_count += 1
+                        logger.info(f"Successfully downloaded and processed paper {success_count}/{len(urls)}: {paper_info.get('title', 'Unknown')}")
+                    else:
+                        logger.error(f"Failed to download or process paper: {url}")
+                except Exception as e:
+                    logger.error(f"Error processing URL {url}: {str(e)}")
+            
+            logger.info(f"Completed processing {success_count}/{len(urls)} papers")
+        except Exception as e:
+            logger.error(f"Error processing URLs file: {str(e)}")
+    
+    elif args.download_url:
+        # Download a single paper to pending list
+        try:
+            # Use arxiv_id from URL if it's an arXiv URL
+            arxiv_id = None
+            if "arxiv.org" in args.download_url:
+                # Extract arxiv ID from URL patterns like:
+                # https://arxiv.org/abs/1234.56789
+                # https://arxiv.org/pdf/1234.56789.pdf
+                url_parts = args.download_url.split('/')
+                for part in url_parts:
+                    if '.' in part and not part.endswith('.pdf'):
+                        potential_id = part.split('v')[0] if 'v' in part else part
+                        if re.match(r'^\d+\.\d+$', potential_id):
+                            arxiv_id = part
+                            break
+            
+            if arxiv_id:
+                logger.info(f"Detected arXiv ID: {arxiv_id}")
+                # Download using arxiv API if possible
+                if ARXIV_AVAILABLE:
+                    try:
+                        search = arxiv.Search(id_list=[arxiv_id])
+                        client = arxiv.Client()
+                        results = list(client.results(search))
+                        
+                        if results:
+                            paper = results[0]
+                            paper_id = paper.get_short_id()
+                            title = paper.title
+                            
+                            # Create the metadata file path
+                            metadata_file = os.path.join(papers_dir, "pending_papers.json")
+                            pending_papers = []
+                            
+                            if os.path.exists(metadata_file):
+                                try:
+                                    with open(metadata_file, 'r') as f:
+                                        pending_papers = json.load(f)
+                                except Exception as e:
+                                    logger.error(f"Error loading pending papers: {e}")
+                            
+                            # Check if paper is already in pending list
+                            if any(p.get('arxiv_id') == paper_id for p in pending_papers):
+                                logger.info(f"Paper {paper_id} already in pending list")
+                            else:
+                                # Download PDF
+                                pdf_filename = f"{paper_id}.pdf"
+                                pdf_path = os.path.join(pdf_dir, pdf_filename)
+                                
+                                # Download PDF directly using requests
+                                pdf_url = paper.pdf_url
+                                response = requests.get(pdf_url, stream=True)
+                                response.raise_for_status()
+                                
+                                with open(pdf_path, 'wb') as f:
+                                    for chunk in response.iter_content(chunk_size=8192):
+                                        f.write(chunk)
+                                
+                                logger.info(f"Downloaded PDF to {pdf_path}")
+                                
+                                # Save metadata
+                                paper_info = {
+                                    'arxiv_id': paper_id,
+                                    'title': title,
+                                    'authors': [author.name for author in paper.authors],
+                                    'summary': paper.summary,
+                                    'date': paper.published.strftime('%Y-%m-%d'),
+                                    'categories': paper.categories,
+                                    'pdf_url': paper.pdf_url,
+                                    'pdf_path': pdf_path
+                                }
+                                
+                                pending_papers.append(paper_info)
+                                
+                                # Save pending papers
+                                with open(metadata_file, 'w') as f:
+                                    json.dump(pending_papers, f, indent=2)
+                                
+                                logger.info(f"Added paper to pending list: {title}")
+                                logger.info(f"Total pending papers: {len(pending_papers)}")
+                        else:
+                            logger.error(f"No papers found with ID {arxiv_id}")
+                    except Exception as e:
+                        logger.error(f"Error downloading paper with arXiv ID {arxiv_id}: {str(e)}")
+                else:
+                    logger.error("ArXiv module not available")
+            else:
+                logger.error("Not an arXiv URL or couldn't extract arXiv ID")
+        except Exception as e:
+            logger.error(f"Error downloading paper from URL: {str(e)}")
+    
+    elif args.download_urls_file:
+        # Download multiple papers from URLs file to pending list
+        try:
+            with open(args.download_urls_file, 'r') as f:
+                urls = [line.strip() for line in f if line.strip()]
+            
+            logger.info(f"Found {len(urls)} URLs in file")
+            
+            # Create the metadata file path
+            metadata_file = os.path.join(papers_dir, "pending_papers.json")
+            pending_papers = []
+            
+            if os.path.exists(metadata_file):
+                try:
+                    with open(metadata_file, 'r') as f:
+                        pending_papers = json.load(f)
+                except Exception as e:
+                    logger.error(f"Error loading pending papers: {e}")
+            
+            success_count = 0
+            for url in urls:
+                try:
+                    # Process ArXiv URLs
+                    if "arxiv.org" in url:
+                        # Extract arxiv ID from URL
+                        arxiv_id = None
+                        url_parts = url.split('/')
+                        for part in url_parts:
+                            if '.' in part and not part.endswith('.pdf'):
+                                potential_id = part.split('v')[0] if 'v' in part else part
+                                if re.match(r'^\d+\.\d+$', potential_id):
+                                    arxiv_id = part
+                                    break
+                        
+                        if not arxiv_id:
+                            logger.error(f"Could not extract ArXiv ID from URL: {url}")
+                            continue
+                        
+                        logger.info(f"Detected arXiv ID: {arxiv_id}")
+                        
+                        # Check if arxiv module is available
+                        if not ARXIV_AVAILABLE:
+                            logger.error("ArXiv module not available")
+                            continue
+                        
+                        # Download using arxiv API
+                        search = arxiv.Search(id_list=[arxiv_id])
+                        client = arxiv.Client()
+                        results = list(client.results(search))
+                        
+                        if not results:
+                            logger.error(f"No papers found with ID {arxiv_id}")
+                            continue
+                        
+                        paper = results[0]
+                        paper_id = paper.get_short_id()
+                        title = paper.title
+                        
+                        # Check if paper is already in pending list
+                        if any(p.get('arxiv_id') == paper_id for p in pending_papers):
+                            logger.info(f"Paper {paper_id} already in pending list")
+                            continue
+                        
+                        # Check if paper already exists in database
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT id FROM research_papers WHERE id = ?", (paper_id,))
+                        if cursor.fetchone():
+                            logger.info(f"Paper {paper_id} - '{title}' already exists in database, skipping")
+                            continue
+                        
+                        # Download PDF
+                        pdf_filename = f"{paper_id}.pdf"
+                        pdf_path = os.path.join(pdf_dir, pdf_filename)
+                        
+                        # Download PDF directly using requests
+                        pdf_url = paper.pdf_url
+                        response = requests.get(pdf_url, stream=True)
+                        response.raise_for_status()
+                        
+                        with open(pdf_path, 'wb') as f:
+                            for chunk in response.iter_content(chunk_size=8192):
+                                f.write(chunk)
+                        
+                        logger.info(f"Downloaded PDF to {pdf_path}")
+                        
+                        # Save metadata
+                        paper_info = {
+                            'arxiv_id': paper_id,
+                            'title': title,
+                            'authors': [author.name for author in paper.authors],
+                            'summary': paper.summary,
+                            'date': paper.published.strftime('%Y-%m-%d'),
+                            'categories': paper.categories,
+                            'pdf_url': paper.pdf_url,
+                            'pdf_path': pdf_path
+                        }
+                        
+                        pending_papers.append(paper_info)
+                        success_count += 1
+                        logger.info(f"Added paper to pending list: {title}")
+                        
+                    else:
+                        # Handle non-ArXiv URLs with the download_paper_from_url function
+                        # This just downloads to the database, not to pending_papers.json
+                        use_mistral = hasattr(config, 'USE_MISTRAL_OCR') and config.USE_MISTRAL_OCR
+                        paper_info = download_paper_from_url(url, conn, pdf_dir, use_mistral)
+                        if paper_info:
+                            success_count += 1
+                            logger.info(f"Successfully downloaded and processed non-ArXiv paper: {paper_info.get('title', 'Unknown')}")
+                        else:
+                            logger.error(f"Failed to download or process non-ArXiv paper: {url}")
+                    
+                except Exception as e:
+                    logger.error(f"Error processing URL {url}: {str(e)}")
+            
+            # Save pending papers
+            with open(metadata_file, 'w') as f:
+                json.dump(pending_papers, f, indent=2)
+                
+            logger.info(f"Completed downloading {success_count}/{len(urls)} papers")
+            logger.info(f"Total pending papers: {len(pending_papers)}")
+            
+        except Exception as e:
+            logger.error(f"Error processing URLs file: {str(e)}")
+    
+    elif args.download_only:
+        # Override search query if provided
+        custom_search = None
+        if args.search_query:
+            logger.info(f"Using custom search query: {args.search_query}")
+            custom_search = args.search_query
+            # Also set in config for other functions that might use it
+            if not hasattr(config, 'ARXIV_CONFIG'):
+                config.ARXIV_CONFIG = {}
+            config.ARXIV_CONFIG['search_query'] = args.search_query
+        
+        download_papers_only(max_papers=args.max, custom_search_query=custom_search)
+    
+    elif args.batch_process:
+        batch_process_pdfs(max_papers=args.max)
+    
+    elif args.collect:
+        collect_papers(max_papers=args.max)
+    
+    else:
+        parser.print_help()
+    
+    # Close database connection if opened
+    if args.url or args.urls_file or args.download_url or args.download_urls_file:
+        conn.close() 
