@@ -71,9 +71,21 @@ VALUABLE_FILE_TYPES = [
 
 # Prioritized directories - order matters for value scoring
 VALUABLE_DIRECTORIES = [
+    # Core implementation directories (highest priority)
+    "src",
+    "core", 
+    "lib",
+    "impl",
+    "runtime",
+    "model",
+    "engine",
+    "ops",
+    "csrc",
+    # Documentation directories
     "docs", 
     "documentation", 
     "doc",
+    # Example/tutorial directories
     "examples", 
     "tutorials", 
     "guides",
@@ -94,6 +106,9 @@ SKIP_DIRECTORIES = [
     "__pycache__",
     "assets"
 ]
+
+# Alias for backward compatibility
+EXCLUDED_DIRECTORIES = SKIP_DIRECTORIES
 
 # Constants for file extensions to skip
 SKIP_EXTENSIONS = [
@@ -773,15 +788,18 @@ def store_repo_in_db(conn, repo_info, readme_content, valuable_files=None):
         logger.error(f"Error storing repository {repo_info['full_name']} in database: {str(e)}")
         return False
 
-def get_repo_directory_structure(session, repo_name, path="", page=1):
+def get_repo_directory_structure(session, repo_name, path="", page=1, recursive=False, max_depth=1, current_depth=0):
     """
     Get the directory structure with pagination and rate limiting
     
     Args:
         session: GitHub API session
         repo_name: Repository name in the format "owner/repo"
-        path: Directory path within repository
+        path: Directory path within the repository
         page: Page number for pagination
+        recursive: Whether to recursively explore subdirectories
+        max_depth: Maximum depth for recursive exploration
+        current_depth: Current exploration depth (used internally)
         
     Returns:
         List of directory contents from GitHub API
@@ -823,10 +841,34 @@ def get_repo_directory_structure(session, repo_name, path="", page=1):
         # Check if there might be more pages
         if len(contents) == 100:
             try:
-                next_page = get_repo_directory_structure(session, repo_name, path, page + 1)
+                next_page = get_repo_directory_structure(
+                    session, repo_name, path, page + 1, 
+                    recursive=recursive, max_depth=max_depth, current_depth=current_depth
+                )
                 contents.extend(next_page)
             except Exception as e:
                 logger.warning(f"Error getting next page for {repo_name}/{path}: {str(e)}")
+        
+        # Handle recursive exploration if requested
+        if recursive and current_depth < max_depth:
+            all_contents = contents.copy()
+            for item in contents:
+                if item.get('type') == 'dir':
+                    try:
+                        # Skip known low-value directories
+                        dir_path = item.get('path', '')
+                        if any(skip_dir in dir_path.lower() for skip_dir in SKIP_DIRECTORIES):
+                            continue
+                            
+                        # Explore subdirectory
+                        sub_contents = get_repo_directory_structure(
+                            session, repo_name, item.get('path', ''), 
+                            recursive=recursive, max_depth=max_depth, current_depth=current_depth + 1
+                        )
+                        all_contents.extend(sub_contents)
+                    except Exception as e:
+                        logger.warning(f"Error exploring subdirectory {item.get('path', '')}: {str(e)}")
+            return all_contents
                 
         return contents
     except Exception as e:
@@ -835,67 +877,131 @@ def get_repo_directory_structure(session, repo_name, path="", page=1):
 
 def get_file_value_score(file_info):
     """
-    Calculate a value score for a file based on its type and location
+    Calculate a value score for a file based on its path, type, and other attributes
     
     Args:
-        file_info: File information dictionary from GitHub API
+        file_info: File information from GitHub API
         
     Returns:
-        Value score (0-100) with higher values for more educational content
+        Value score (0-100)
     """
-    if not file_info or not isinstance(file_info, dict):
+    file_path = file_info.get('path', '')
+    if not file_path:
         return 0
         
-    path = file_info.get('path', '').lower()
-    size = file_info.get('size', 0)
-    name = file_info.get('name', '').lower()
+    # Get file extension and name
+    file_ext = os.path.splitext(file_path)[1].lower()
+    filename = os.path.basename(file_path).lower()
     
-    # Base score starts at 0
-    score = 0
+    # Start with a base score
+    score = 10
     
-    # File is too large
-    if size > MAX_FILE_SIZE:
-        return 0
-        
-    # Check if file is in any excluded directory
-    if any(excluded_dir in path.split('/') for excluded_dir in EXCLUDED_DIRECTORIES):
-        return 0
-        
-    # Give high scores to specific high-value files
-    if any(high_value_file in name for high_value_file in HIGH_VALUE_FILES):
-        score += 80
+    # Check if file is in a valuable directory
+    if any(vdir.lower() in file_path.lower() for vdir in VALUABLE_DIRECTORIES):
+        score += 20
     
-    # Score based on directory value (earlier in the list = higher value)
-    for idx, valuable_dir in enumerate(VALUABLE_DIRECTORIES):
-        weight = len(VALUABLE_DIRECTORIES) - idx  # Higher weight for earlier directories
-        if valuable_dir in path.lower().split('/'):
-            score += min(40, weight * 5)  # Max 40 points from directory
-            break
-            
-    # Score based on file extension
-    if path.endswith('.ipynb'):
-        score += 30  # Jupyter notebooks are high value
-    elif path.endswith('.md') or path.endswith('.rst'):
-        score += 25  # Markdown/RST documentation
-    elif path.endswith('.py'):
-        # Python files have variable value
-        if 'test' in path.split('/') or 'test_' in name or name.startswith('test'):
-            score += 5  # Test files are low value
-        elif 'util' in path.split('/') or 'utils' in path.split('/') or 'util' in name or 'utils' in name:
-            score += 10  # Utility files are medium-low value
+    # Check if file is in an implementation directory
+    implementation_dirs = ['src', 'core', 'lib', 'impl', 'runtime', 'engine', 'model', 'csrc', 'ops']
+    if any(idir.lower() in file_path.lower() for idir in implementation_dirs):
+        score += 30  # Boost score for core implementation code
+    
+    # Give higher scores to algorithm implementations
+    if any(term in file_path.lower() for term in ['algorithm', 'model', 'layer', 'impl', 'engine', 'optimizer']):
+        score += 25
+    
+    # Check for specific high-value patterns in file paths
+    high_value_patterns = [
+        '/model/', '/engine/', '/kernel/', '/core/', 
+        '/runtime/', '/optimizer/', '/ops/', '/csrc/'
+    ]
+    if any(pattern in file_path.lower() for pattern in high_value_patterns):
+        score += 35  # These typically contain critical implementations
+    
+    # Special handling by file type
+    if file_ext == '.md' or file_ext == '.rst':
+        # Markdown or RST files - check if README
+        if 'readme' in filename:
+            score = 100  # READMEs are typically the most valuable for context
+        elif any(term in filename for term in ['tutorial', 'guide', 'example', 'documentation']):
+            score = 90
+        elif any(term in file_path.lower() for term in ['doc', 'docs', 'documentation']):
+            score = 80
         else:
-            score += 20  # Regular Python files
-    elif path.endswith('.yaml') or path.endswith('.yml') or path.endswith('.json'):
-        score += 15  # Configuration files
-    elif path.endswith('.txt'):
-        score += 10  # Text files
-    elif path.endswith('.html') or path.endswith('.js') or path.endswith('.css'):
-        score += 5  # Web content
+            # Other markdown files get a modest score
+            score = 60
     
-    # Cap the score at 100
-    return min(100, score)
+    elif file_ext == '.py':
+        # Python files - more nuanced scoring
+        score += 20
+        
+        # Core implementation Python files get higher scores
+        if any(pattern in file_path.lower() for pattern in ['core', 'model', 'engine', 'impl']):
+            score += 20
+        
+        # Try to analyze file content if possible
+        try:
+            # Use content size as a proxy for complexity (simple but effective)
+            content_size = file_info.get('size', 0)
+            if content_size > 10000:  # Over 10KB
+                score += 15
+            elif content_size > 5000:  # Over 5KB
+                score += 10
+            elif content_size > 2000:  # Over 2KB
+                score += 5
+        except Exception as e:
+            # If content analysis fails, log and continue with path-based score
+            logger.warning(f"Error during content analysis for {file_path}: {str(e)}")
+    
+    elif file_ext in ['.cpp', '.c', '.cc', '.cu', '.cuh', '.h', '.hpp']:
+        # C/C++/CUDA files - typically high-value implementations
+        score += 40
+        
+        # CUDA files often contain performance-critical code
+        if file_ext in ['.cu', '.cuh']:
+            score += 15
+    
+    elif file_ext in ['.ipynb']:
+        # Jupyter notebooks are often educational
+        score += 50
+        
+        if any(term in file_path.lower() for term in ['tutorial', 'example', 'demo']):
+            score += 20
+    
+    elif file_ext in ['.js', '.ts', '.jsx', '.tsx', '.css', '.html']:
+        # Frontend files
+        score += 15
+    
+    elif file_ext in ['.json', '.yaml', '.yml', '.ini', '.cfg', '.conf']:
+        # Configuration files - moderate value
+        score += 25
+    
+    # Special case handling
+    # If it's a cookbook, example, or tutorial in the filename, boost score
+    if any(term in filename for term in ['cookbook', 'example', 'tutorial', 'guide', 'demo', 'howto']):
+        score += 15
+    
+    # If it's a well-known educational file pattern, boost score
+    common_educational_files = [
+        'getting_started', 'quickstart', 'introduction', 'overview',
+        'beginner', 'basics', 'installation', 'setup', 'configuration'
+    ]
+    if any(term in filename for term in common_educational_files):
+        score += 15
+    
+    # Low value files
+    low_value_patterns = [
+        '__pycache__', '.git', '.pyc', '.so', '.dll', '.exe', '.bin',
+        '.log', '.tmp', '.temp', '.swp', '.bak', '.cache'
+    ]
+    if any(pattern in file_path for pattern in low_value_patterns):
+        score = 5  # Very low score
+    
+    # Normalize score to 0-100 range
+    score = max(0, min(100, score))
+    
+    return int(score)
 
-def is_valuable_file(file_info, min_value_score=30):
+def is_valuable_file(file_info, min_value_score=1):
     """
     Determine if a file is valuable for knowledge extraction
     
@@ -952,12 +1058,70 @@ def get_file_type(path):
         return 'html'
     elif path_lower.endswith('.js'):
         return 'javascript'
+    elif path_lower.endswith('.ts'):
+        return 'typescript'
+    elif path_lower.endswith('.jsx') or path_lower.endswith('.tsx'):
+        return 'react'
     elif path_lower.endswith('.css'):
         return 'css'
-    elif path_lower.endswith('.txt'):
+    elif path_lower.endswith('.scss') or path_lower.endswith('.sass'):
+        return 'sass'
+    # C/C++ files
+    elif path_lower.endswith(('.c', '.cpp', '.cc', '.cxx')):
+        return 'cpp'
+    # Header files
+    elif path_lower.endswith(('.h', '.hpp', '.hxx')):
+        return 'header'
+    # CUDA files
+    elif path_lower.endswith(('.cu', '.cuh')):
+        return 'cuda'
+    # Configuration files
+    elif path_lower.endswith(('.ini', '.cfg', '.conf', '.config')):
+        return 'config'
+    # XML files
+    elif path_lower.endswith(('.xml', '.plist')):
+        return 'xml'
+    # Text files
+    elif path_lower.endswith(('.txt', '.text')):
         return 'text'
-    else:
-        return 'other'
+    # Shell scripts
+    elif path_lower.endswith(('.sh', '.bash', '.zsh')):
+        return 'shell'
+    # Docker files
+    elif path_lower.endswith('dockerfile') or '/dockerfile' in path_lower:
+        return 'docker'
+    # SQL files
+    elif path_lower.endswith('.sql'):
+        return 'sql'
+    # Go files
+    elif path_lower.endswith('.go'):
+        return 'go'
+    # Rust files
+    elif path_lower.endswith('.rs'):
+        return 'rust'
+    # Java files
+    elif path_lower.endswith('.java'):
+        return 'java'
+    # Kotlin files
+    elif path_lower.endswith('.kt'):
+        return 'kotlin'
+    # Swift files
+    elif path_lower.endswith('.swift'):
+        return 'swift'
+    
+    # Generic coding files based on extension
+    coding_extensions = [
+        '.php', '.rb', '.pl', '.pm', '.hs', '.fs', '.fsx', '.cs', '.ts', 
+        '.clj', '.scala', '.lua', '.r', '.jl', '.ex', '.exs', '.erl', '.hrl',
+        '.elm', '.dart', '.groovy', '.tcl', '.vb', '.coffee', '.proto'
+    ]
+    
+    for ext in coding_extensions:
+        if path_lower.endswith(ext):
+            return os.path.splitext(path_lower)[1][1:]  # Return extension without the dot
+    
+    # Default to unknown type
+    return 'unknown'
 
 def calculate_repo_quality_score(repo_info, valuable_files=None):
     """
@@ -1095,25 +1259,49 @@ def calculate_repo_quality_score(repo_info, valuable_files=None):
         has_tutorials = False
         has_notebooks = False
         has_well_documented_py = False
+        has_implementations = False
+        has_cpp_cuda = False
+        implementation_count = 0
+        doc_count = 0
         
         for file in valuable_files:
             path = file.get('path', '').lower()
+            file_type = file.get('type', '')
             
             # Check for documentation
             if '/docs/' in path or '/doc/' in path or '/documentation/' in path or path.endswith('readme.md'):
                 has_docs = True
+                doc_count += 1
             
             # Check for tutorials or examples
             if '/tutorials/' in path or '/examples/' in path or 'tutorial' in path or 'example' in path:
                 has_tutorials = True
+                doc_count += 1
             
             # Check for notebooks
             if path.endswith('.ipynb'):
                 has_notebooks = True
+                doc_count += 1
             
             # Check for well-documented Python files
             if path.endswith('.py') and file.get('value_score', 0) >= 70:
                 has_well_documented_py = True
+            
+            # Check for code implementation files
+            if file_type in ['python', 'cpp', 'cuda', 'header', 'java', 'rust', 'go']:
+                if any(term in path for term in ['/src/', '/lib/', '/core/', '/models/', '/engine/', '/impl/']):
+                    has_implementations = True
+                    implementation_count += 1
+            
+            # Check for C++ or CUDA files
+            if file_type in ['cpp', 'cuda', 'header']:
+                has_cpp_cuda = True
+                implementation_count += 1
+        
+        # Calculate ratio of implementation files to documentation files
+        implementation_ratio = 0
+        if doc_count + implementation_count > 0:
+            implementation_ratio = implementation_count / (doc_count + implementation_count)
         
         # Boost for having key educational content
         if has_docs:
@@ -1124,6 +1312,18 @@ def calculate_repo_quality_score(repo_info, valuable_files=None):
             score += 5
         if has_well_documented_py:
             score += 3
+        if has_implementations:
+            score += 10  # Reward repositories with implementation code
+        if has_cpp_cuda:
+            score += 5   # Reward repositories with high-performance code
+        
+        # Balance of code and documentation
+        if 0.3 <= implementation_ratio <= 0.7:
+            score += 10  # Ideal balance between code and documentation
+        elif implementation_ratio > 0.8:
+            score -= 5   # Too much code, not enough documentation
+        elif implementation_ratio < 0.2:
+            score -= 5   # Too much documentation, not enough code
     
     # Check for README content if provided separately
     readme_content = repo_info.get('readme_content', '')
@@ -1169,7 +1369,9 @@ def collect_file_content(session, repo_name, file_path, file_info=None):
         # If file_info is not provided, get it
         if not file_info:
             response = session.get(f"https://api.github.com/repos/{repo_name}/contents/{file_path}")
-            response.raise_for_status()
+            if response.status_code != 200:
+                logger.error(f"Failed to get file info for {file_path}: Status {response.status_code}")
+                return None
             file_info = response.json()
         
         # Check if the file is too large for direct download
@@ -1177,19 +1379,47 @@ def collect_file_content(session, repo_name, file_path, file_info=None):
             logger.warning(f"File {file_path} is too large for direct download. Using raw URL instead.")
             
             # Use the raw URL for large files
-            response = session.get(file_info.get('download_url'))
-            response.raise_for_status()
+            download_url = file_info.get('download_url')
+            if not download_url:
+                logger.error(f"No download_url for large file {file_path}")
+                return None
+                
+            response = session.get(download_url)
+            if response.status_code != 200:
+                logger.error(f"Failed to download file {file_path}: Status {response.status_code}")
+                return None
+                
             return response.text
         
         # GitHub API returns content as base64 encoded
         if 'content' in file_info and file_info.get('encoding') == 'base64':
-            content = base64.b64decode(file_info['content']).decode('utf-8', errors='replace')
-            return content
+            try:
+                content = base64.b64decode(file_info['content']).decode('utf-8', errors='replace')
+                return content
+            except Exception as e:
+                logger.error(f"Error decoding content for {file_path}: {str(e)}")
+                return None
+        elif 'content' in file_info:
+            # Handle case where content is available but not base64 encoded
+            logger.warning(f"File {file_path} has content but not base64 encoded. Encoding: {file_info.get('encoding', 'unknown')}")
+            return str(file_info['content'])
+        else:
+            # Try to get the raw content directly
+            download_url = file_info.get('download_url')
+            if download_url:
+                try:
+                    response = session.get(download_url)
+                    if response.status_code == 200:
+                        return response.text
+                except Exception as e:
+                    logger.error(f"Error getting raw content for {file_path}: {str(e)}")
             
-        return None
-        
+            logger.error(f"No content field for {file_path}")
+            return None
+            
     except Exception as e:
-        logger.error(f"Error collecting content for file {file_path}: {str(e)}")
+        logger.error(f"Error collecting content for {file_path}: {str(e)}")
+        logger.error(f"File info: {file_info}")
         return None
 
 def process_notebook(content, repo_name="", file_path=""):
@@ -1725,10 +1955,65 @@ def process_file_content(content, repo_name, file_path, file_type):
         return process_python_file(content, repo_name, file_path)
     elif file_type in ['markdown', 'restructured_text']:
         return process_markdown_file(content, repo_name, file_path)
+    elif file_type in ['cpp', 'c', 'cuda', 'header']:
+        return process_cpp_file(content, repo_name, file_path)
+    elif file_type == 'json':
+        # Process JSON files in a more readable way
+        try:
+            header = f"# {repo_name}: {file_path}\n\n"
+            if len(content) > 5000:  # For large JSON files, just provide structure info
+                json_obj = json.loads(content)
+                if isinstance(json_obj, dict):
+                    processed_content = header + f"JSON object with {len(json_obj)} keys:\n\n"
+                    for key in list(json_obj.keys())[:30]:  # Show first 30 keys
+                        value = json_obj[key]
+                        type_info = type(value).__name__
+                        if isinstance(value, (dict, list)):
+                            size_info = f" with {len(value)} items" if hasattr(value, '__len__') else ""
+                            processed_content += f"- `{key}`: {type_info}{size_info}\n"
+                        else:
+                            processed_content += f"- `{key}`: {type_info}\n"
+                    if len(json_obj) > 30:
+                        processed_content += f"\n... and {len(json_obj) - 30} more keys\n"
+                else:
+                    processed_content = header + f"JSON array with {len(json_obj)} items"
+                return processed_content
+            else:
+                # For smaller JSON files, format it nicely and include the full content
+                json_obj = json.loads(content)
+                formatted_json = json.dumps(json_obj, indent=2)
+                return header + f"```json\n{formatted_json}\n```"
+        except Exception as e:
+            logger.error(f"Error processing JSON content for {file_path}: {str(e)}")
+            return f"# {repo_name}: {file_path}\n\nError processing JSON content."
+    elif file_type in ['yaml', 'yml']:
+        # Process YAML files
+        try:
+            import yaml
+            header = f"# {repo_name}: {file_path}\n\n"
+            return header + f"```yaml\n{content}\n```"
+        except Exception as e:
+            logger.error(f"Error processing YAML content for {file_path}: {str(e)}")
+            return f"# {repo_name}: {file_path}\n\nError processing YAML content."
     else:
-        # For other file types, just add a header
+        # For other file types, provide more context
         header = f"# {repo_name}: {file_path}\n\n"
-        return header + content
+        
+        # Add file type and size info
+        file_ext = os.path.splitext(file_path)[1].lstrip('.')
+        file_size = len(content) if content else 0
+        file_info = f"File type: {file_ext.upper() if file_ext else 'Unknown'}\nSize: {file_size} bytes\n\n"
+        
+        # For text files, include the content with proper formatting
+        if file_type in ['text', 'config', 'ini', 'properties']:
+            return header + file_info + f"```\n{content[:5000]}\n{'...' if len(content) > 5000 else ''}\n```"
+        
+        # For source code files, use syntax highlighting if possible
+        if file_ext:
+            return header + file_info + f"```{file_ext}\n{content[:5000]}\n{'...' if len(content) > 5000 else ''}\n```"
+        
+        # Fallback for unknown types
+        return header + file_info + content[:5000] + ('...' if len(content) > 5000 else '')
 
 def calculate_file_value_score(file_path, content, repo_info=None):
     """
@@ -1922,7 +2207,7 @@ def calculate_file_value_score(file_path, content, repo_info=None):
     
     return int(score)
 
-def collect_valuable_files(session, repo_name, repo_info, max_files=50, test_mode=False, max_file_size=1024*1024):
+def collect_valuable_files(session, repo_name, repo_info, max_files=75, test_mode=False, max_file_size=1024*1024, recursive_depth=3):
     """
     Collect valuable files from a GitHub repository
     
@@ -1939,6 +2224,7 @@ def collect_valuable_files(session, repo_name, repo_info, max_files=50, test_mod
         max_files: Maximum number of files to collect
         test_mode: If True, print extra information for testing
         max_file_size: Maximum file size in bytes to collect (default: 1MB)
+        recursive_depth: Maximum depth for recursive directory exploration
         
     Returns:
         List of dictionaries with file information
@@ -1992,10 +2278,21 @@ def collect_valuable_files(session, repo_name, repo_info, max_files=50, test_mod
                 
                 # Large files are skipped
                 if item['size'] > max_file_size:
-                    if test_mode:
-                        logger.info(f"Skipping large file: {file_path} ({item['size']} bytes)")
-                    rejected_count += 1
-                    continue
+                    # For implementation files, still consider them if they contain valuable patterns
+                    file_type = get_file_type(file_path)
+                    high_value_patterns = ['/model/', '/engine/', '/core/', '/runtime/', '/optimizer/', '/kernel/']
+                    is_critical_file = any(pattern in file_path.lower() for pattern in high_value_patterns)
+                    
+                    # Don't immediately reject critical implementation files
+                    if (file_type in ['python', 'cpp', 'cuda', 'header'] and is_critical_file and 
+                            item['size'] < max_file_size * 2):  # Allow up to 2x the max size for important files
+                        if test_mode:
+                            logger.info(f"Including large important file: {file_path} ({item['size']} bytes)")
+                    else:
+                        if test_mode:
+                            logger.info(f"Skipping large file: {file_path} ({item['size']} bytes)")
+                        rejected_count += 1
+                        continue
                 
                 # Skip files in SKIP_DIRECTORIES directories
                 if any(skip_dir in file_path.lower() for skip_dir in SKIP_DIRECTORIES):
@@ -2009,42 +2306,31 @@ def collect_valuable_files(session, repo_name, repo_info, max_files=50, test_mod
                         logger.info(f"Skipping file with ignored extension: {file_path}")
                     continue
                 
-                # Get file content for scoring
+                # Apply additional filters for specific file types
+                if file_ext.lstrip('.') in ['md', 'rst', 'txt']:
+                    # Only README or explicitly valuable text files
+                    if not ('readme' in file_path.lower() or 
+                            'tutorial' in file_path.lower() or
+                            'guide' in file_path.lower() or
+                            'example' in file_path.lower() or
+                            'documentation' in file_path.lower()):
+                        # Further check if file has a potentially valuable name
+                        if not any(term in file_path.lower() for term in [
+                            'overview', 'howto', 'getting_started', 'setup', 'install',
+                            'introduction', 'usage', 'quickstart', 'contributing', 'changelog'
+                        ]):
+                            continue
+                
                 try:
-                    content_response = session.get(item['download_url'])
-                    if content_response.status_code != 200:
-                        if test_mode:
-                            logger.info(f"Failed to download {file_path}: HTTP {content_response.status_code}")
-                        continue
-                        
-                    content = content_response.text
-                    
-                    # Calculate file value score
-                    value_score = calculate_file_value_score(file_path, content, repo_info)
+                    # Calculate a value score for this file
+                    file_info = item
+                    value_score = get_file_value_score(file_info)
                     
                     if test_mode:
                         logger.info(f"File: {file_path}, Value Score: {value_score}")
                     
-                    # Process content based on file type
-                    processed_content = None
-                    if file_ext.lower() == '.ipynb':
-                        processed_content = process_notebook(content, repo_name, file_path)
-                    elif file_ext.lower() == '.py':
-                        processed_content = process_python_file(content, repo_name, file_path)
-                    elif file_ext.lower() in ['.md', '.rst', '.txt'] or os.path.basename(file_path).lower() == 'readme':
-                        processed_content = process_markdown(content, repo_name, file_path)
-                    
-                    # Add to candidate files if it has a value score above threshold or is processed
-                    if value_score >= 30 or processed_content:
-                        candidate_files.append({
-                            'path': file_path,
-                            'size': item['size'],
-                            'download_url': item['download_url'],
-                            'content': content,
-                            'processed_content': processed_content,
-                            'value_score': value_score,
-                            'priority': 1 if 'readme' in file_path.lower() or file_path.lower().endswith('.md') else 2
-                        })
+                    if value_score >= 5:  # Lower threshold from 40 to 5 for first pass
+                        candidate_files.append((file_path, value_score, file_info))
                         
                 except Exception as e:
                     logger.error(f"Error processing {file_path}: {str(e)}")
@@ -2088,94 +2374,170 @@ def collect_valuable_files(session, repo_name, repo_info, max_files=50, test_mod
                             continue
                         dirs_to_visit.append(item['path'])
                     
-                # Then process files in this directory
-                for item in contents:
-                    if item['type'] != 'file':
-                        continue
+                    # Process files
+                    elif item['type'] == 'file':
+                        file_path = item['path']
+                        file_ext = os.path.splitext(file_path)[1].lower()
                         
-                    file_path = item['path']
-                    file_ext = os.path.splitext(file_path)[1].lower()
-                    
-                    # Skip large files
-                    if item['size'] > max_file_size:
-                        rejected_count += 1
-                        continue
-                        
-                    # Skip files with extensions to ignore
-                    if file_ext.lstrip('.') in SKIP_EXTENSIONS:
-                        continue
-                    
-                    # Quick scoring based on path only
-                    path_score = 0
-                    # Boost documentation files
-                    if any(d in file_path.lower() for d in ['readme', 'document', 'tutorial', 'example']):
-                        path_score = 60
-                    
-                    # High potential valuable files are downloaded and evaluated
-                    if path_score >= 30 or file_ext.lower() in ['.md', '.rst', '.ipynb', '.py']:
-                        try:
-                            content_response = session.get(item['download_url'])
-                            if content_response.status_code != 200:
+                        # Large files are skipped
+                        if item['size'] > max_file_size:
+                            if should_include_large_file(file_path, item['size'], max_file_size, test_mode):
+                                # Continue processing this file
+                                pass
+                            else:
+                                if test_mode:
+                                    logger.info(f"Skipping large file: {file_path} ({item['size']} bytes)")
+                                rejected_count += 1
                                 continue
+                            
+                        # Skip files with extensions to ignore
+                        if file_ext.lstrip('.') in SKIP_EXTENSIONS:
+                            if test_mode:
+                                logger.info(f"Skipping file with ignored extension: {file_path}")
+                            continue
+                            
+                        # Calculate a value score for this file
+                        try:
+                            file_info = item
+                            value_score = get_file_value_score(file_info)
+                            
+                            if test_mode:
+                                logger.info(f"File: {file_path}, Value Score: {value_score}")
                                 
-                            content = content_response.text
-                            
-                            # Calculate file value score with full content
-                            value_score = calculate_file_value_score(file_path, content, repo_info)
-                            
-                            # Process content based on file type
-                            processed_content = None
-                            if file_ext.lower() == '.ipynb':
-                                processed_content = process_notebook(content, repo_name, file_path)
-                            elif file_ext.lower() == '.py':
-                                processed_content = process_python_file(content, repo_name, file_path)
-                            elif file_ext.lower() in ['.md', '.rst', '.txt'] or os.path.basename(file_path).lower() == 'readme':
-                                processed_content = process_markdown(content, repo_name, file_path)
-                            
-                            # Add to candidate files if it has a good score or is processed
-                            if value_score >= 30 or processed_content:
-                                candidate_files.append({
-                                    'path': file_path,
-                                    'size': item['size'],
-                                    'download_url': item['download_url'],
-                                    'content': content,
-                                    'processed_content': processed_content,
-                                    'value_score': value_score,
-                                    'priority': 3  # Lower priority than priority directories
-                                })
+                            if value_score >= 5:  # Lower threshold from 30 to 5 for secondary search
+                                candidate_files.append((file_path, value_score, file_info))
+                                
                         except Exception as e:
                             logger.error(f"Error processing {file_path}: {str(e)}")
                     
             except Exception as e:
-                logger.warning(f"Error exploring directory {current_dir}: {str(e)}")
+                logger.warning(f"Error getting contents of {current_dir} in {repo_name}: {str(e)}")
                 
     except Exception as e:
-        logger.error(f"Error in second pass directory discovery: {str(e)}")
+        logger.warning(f"Error during recursive directory search: {str(e)}")
     
-    # Sort candidate files by value score and priority
-    candidate_files.sort(key=lambda x: (-x['value_score'], x['priority']))
+    # If we still don't have enough files, try a more aggressive recursive approach
+    if len(candidate_files) < max_files * 0.5:  # If we have less than 50% of our target
+        logger.info(f"Not enough files found in standard directories. Attempting deeper recursive scan.")
+        try:
+            # Use our enhanced recursive directory structure function
+            recursive_contents = get_repo_directory_structure(
+                session, repo_name, "", 
+                recursive=True, 
+                max_depth=recursive_depth
+            )
+            
+            # Process files
+            for item in recursive_contents:
+                if len(candidate_files) >= max_files * 2:
+                    break
+                    
+                if item.get('type') != 'file':
+                    continue
+                    
+                file_path = item.get('path', '')
+                file_size = item.get('size', 0)
+                
+                # Skip files that are too large
+                if file_size > max_file_size:
+                    if should_include_large_file(file_path, file_size, max_file_size, test_mode):
+                        # Continue processing this file
+                        pass
+                    else:
+                        if test_mode:
+                            logger.info(f"Skipping large file: {file_path} ({file_size} bytes)")
+                        rejected_count += 1
+                        continue
+                
+                # Skip files in ignored directories
+                if any(skip_dir in file_path.lower() for skip_dir in SKIP_DIRECTORIES):
+                    continue
+                
+                # Skip files with ignored extensions
+                file_ext = os.path.splitext(file_path)[1].lower()
+                if file_ext.lstrip('.') in SKIP_EXTENSIONS:
+                    continue
+                
+                try:
+                    # Calculate a value score for this file
+                    value_score = get_file_value_score(item)
+                    
+                    if test_mode:
+                        logger.info(f"File (deep scan): {file_path}, Value Score: {value_score}")
+                        
+                    if value_score >= 1:  # Lower threshold from 10 to 1 for deep scan
+                        candidate_files.append((file_path, value_score, item))
+                        
+                except Exception as e:
+                    logger.error(f"Error processing {file_path}: {str(e)}")
+        except Exception as e:
+            logger.warning(f"Error during deep recursive scan: {str(e)}")
     
-    # Select the top max_files
+    # Sort by value score (descending) and select the best files
+    candidate_files.sort(key=lambda x: x[1], reverse=True)
+    
+    # Take top files up to max_files
     top_files = candidate_files[:max_files]
     
-    # Convert to valuable_files format
-    for file_info in top_files:
-        valuable_files.append({
-            'path': file_info['path'],
-            'size': file_info['size'],
-            'download_url': file_info['download_url'],
-            'content': file_info['content'],
-            'processed_content': file_info['processed_content'],
-            'value_score': file_info['value_score']
-        })
+    # Collect content for top files
+    for file_path, value_score, file_info in top_files:
+        try:
+            if test_mode:
+                logger.info(f"Attempting to collect content for: {file_path}")
+                
+            # Collect file content
+            content = collect_file_content(session, repo_name, file_path, file_info)
+            if not content:
+                logger.warning(f"Failed to collect content for {file_path} - content returned None")
+                continue
+                
+            # Process file content based on type
+            file_type = get_file_type(file_path)
+            
+            try:
+                processed_content = process_file_content(content, repo_name, file_path, file_type)
+            except Exception as e:
+                logger.error(f"Error processing content for {file_path}: {str(e)}")
+                # Continue with unprocessed content rather than skipping the file
+                processed_content = content
+            
+            # Add to valuable files
+            valuable_file = {
+                'path': file_path,
+                'type': file_type,
+                'value_score': value_score,
+                'content': content,
+                'processed_content': processed_content,
+                'size': file_info.get('size', 0)
+            }
+            
+            valuable_files.append(valuable_file)
+            
+            if test_mode:
+                logger.info(f"Added file to valuable files: {file_path}, Value Score: {value_score}")
+                
+        except Exception as e:
+            logger.error(f"Error collecting content for {file_path}: {str(e)}")
     
     if test_mode:
-        logger.info(f"Collected {len(valuable_files)} valuable files")
+        if valuable_files:
+            logger.info(f"Collected {len(valuable_files)} valuable files:")
+            for vf in valuable_files[:5]:  # Log first 5 files for debugging
+                logger.info(f"  - {vf['path']} (score: {vf['value_score']})")
+            if len(valuable_files) > 5:
+                logger.info(f"  - ... and {len(valuable_files)-5} more files")
+        else:
+            logger.warning("No valuable files were collected. Check file content collection.")
         logger.info(f"Rejected {rejected_count} files due to size")
-        
+    
+    # Calculate repository quality score based on collected files
+    quality_score = calculate_repo_quality_score(repo_info, valuable_files)
+    if test_mode:
+        logger.info(f"Repository {repo_name} quality score: {quality_score}/100")
+    
     return valuable_files
 
-def collect_directory_files(session, repo_name, base_path, dir_contents, max_files=50, current_files=None):
+def collect_directory_files(session, repo_name, base_path, dir_contents, max_files=75, current_files=None):
     """
     Recursively collect files from a directory structure
     
@@ -2404,27 +2766,22 @@ def ensure_github_schema(conn):
         conn.rollback()
         return False
 
-def collect_github_repos(github_token=None, max_repos=None, test_mode=False, single_repo=None, clean=False, bypass_proxy=False, max_file_size=MAX_FILE_SIZE):
+def collect_github_repos(github_token=None, max_repos=None, test_mode=False, single_repo=None, clean=False, bypass_proxy=False, max_file_size=MAX_FILE_SIZE, recursive_depth=3):
     """
-    Collect valuable content from GitHub repositories
-    
-    This function collects repositories with high educational value:
-    - Prioritizes repositories with good documentation, examples, tutorials
-    - Extracts well-documented code, Jupyter notebooks, Markdown content
-    - Scores repositories and files based on educational value
-    - Stores both in the database and filesystem
+    Main function to collect GitHub repositories
     
     Args:
         github_token: GitHub API token
-        max_repos: Maximum repositories to collect (None for unlimited)
-        test_mode: If True, run in test mode with more verbose output
-        single_repo: If provided, only collect this specific repository
-        clean: If True, clean the output directory before starting
-        bypass_proxy: If True, bypass proxy settings
-        max_file_size: Maximum file size in bytes to collect
+        max_repos: Maximum number of repositories to collect
+        test_mode: Run in test mode with more output
+        single_repo: Collect only a specific repository (owner/repo)
+        clean: Clean output directory before starting
+        bypass_proxy: Bypass proxy settings
+        max_file_size: Maximum file size in bytes
+        recursive_depth: Maximum depth for recursive directory exploration
         
     Returns:
-        Number of successfully processed repositories
+        List of collected repositories
     """
     # Set up directories and database
     setup_directories(clean)
@@ -2509,7 +2866,13 @@ def collect_github_repos(github_token=None, max_repos=None, test_mode=False, sin
                 
                 # Collect valuable files
                 valuable_files = collect_valuable_files(
-                    session, repo_name, repo_info, test_mode=test_mode, max_file_size=max_file_size
+                    session, 
+                    repo_name, 
+                    repo_info, 
+                    max_files=200,  # Increase from 75 to 200
+                    test_mode=test_mode, 
+                    max_file_size=max_file_size,
+                    recursive_depth=recursive_depth
                 )
                 
                 # Calculate quality score after collecting files
@@ -2945,6 +3308,176 @@ def get_repo_contents(session, repo_name, path=""):
         logger.error(f"Error getting contents for {repo_name}/{path}: {str(e)}")
         return None
 
+def process_cpp_file(content, repo_name="", file_path=""):
+    """
+    Process C++/CUDA/Header file content to extract valuable information
+    
+    Args:
+        content: File content as string
+        repo_name: Repository name (owner/repo)
+        file_path: Path to the file
+        
+    Returns:
+        Processed content with extracted classes, functions, and other elements
+    """
+    if not content:
+        return None
+        
+    header = f"# {repo_name}: {file_path}\n\n"
+    
+    try:
+        lines = content.split('\n')
+        processed_content = [header]
+        
+        # Extract file description from comments at the top
+        file_description = []
+        for line in lines[:50]:  # Check first 50 lines
+            stripped = line.strip()
+            if stripped.startswith('//') or stripped.startswith('/*') or stripped.startswith('*'):
+                cleaned_line = stripped.replace('//', '').replace('/*', '').replace('*/', '').replace('*', '').strip()
+                if cleaned_line:
+                    file_description.append(cleaned_line)
+            elif file_description and not stripped:
+                # Keep collecting multi-line comments
+                continue
+            elif file_description:
+                # End of comments block
+                break
+        
+        if file_description:
+            processed_content.append("## File Description\n\n")
+            processed_content.append('\n'.join(file_description))
+            processed_content.append('\n\n')
+            
+        # Find include statements
+        includes = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith('#include'):
+                includes.append(stripped)
+        
+        if includes:
+            processed_content.append("## Dependencies\n\n")
+            for include in includes[:20]:  # Limit to 20 includes
+                processed_content.append(f"- `{include}`\n")
+            if len(includes) > 20:
+                processed_content.append(f"- ... and {len(includes) - 20} more includes\n")
+            processed_content.append('\n')
+        
+        # Extract classes using regex
+        class_pattern = r'class\s+(\w+)(?:\s*:\s*(?:public|protected|private)\s+(\w+))?'
+        classes = re.findall(class_pattern, content)
+        
+        if classes:
+            processed_content.append("## Classes\n\n")
+            for class_info in classes:
+                class_name = class_info[0]
+                parent_class = class_info[1] if len(class_info) > 1 and class_info[1] else None
+                
+                if parent_class:
+                    processed_content.append(f"- `{class_name}` (inherits from `{parent_class}`)\n")
+                else:
+                    processed_content.append(f"- `{class_name}`\n")
+            processed_content.append('\n')
+        
+        # Extract function signatures
+        function_pattern = r'(?:CUDA_KERNEL|__global__|__device__|static)?\s*(\w+(?:<[^>]+>)?)\s+(\w+)\s*\(([^)]*)\)'
+        functions = re.findall(function_pattern, content)
+        
+        if functions:
+            processed_content.append("## Functions\n\n")
+            for func_info in functions[:30]:  # Limit to 30 functions
+                return_type, func_name, params = func_info
+                # Skip common C++ noise like operator(), etc.
+                if func_name in ['if', 'for', 'while', 'switch', 'operator']:
+                    continue
+                processed_content.append(f"- `{return_type} {func_name}({params[:50]}{'...' if len(params) > 50 else ''})`\n")
+            
+            if len(functions) > 30:
+                processed_content.append(f"- ... and {len(functions) - 30} more functions\n")
+            processed_content.append('\n')
+        
+        # Check for CUDA kernels
+        cuda_kernels = []
+        kernel_pattern = r'__global__\s+void\s+(\w+)'
+        cuda_kernels = re.findall(kernel_pattern, content)
+        
+        if cuda_kernels:
+            processed_content.append("## CUDA Kernels\n\n")
+            for kernel in cuda_kernels:
+                processed_content.append(f"- `{kernel}`\n")
+            processed_content.append('\n')
+        
+        # Check for namespaces
+        namespace_pattern = r'namespace\s+(\w+)'
+        namespaces = re.findall(namespace_pattern, content)
+        
+        if namespaces:
+            processed_content.append("## Namespaces\n\n")
+            for namespace in set(namespaces):  # Use set to remove duplicates
+                processed_content.append(f"- `{namespace}`\n")
+            processed_content.append('\n')
+            
+        return ''.join(processed_content)
+    except Exception as e:
+        logger.error(f"Error processing C++ file content for {file_path}: {str(e)}")
+        return header + "Error processing C++ file content."
+
+def is_important_implementation_file(file_path, file_type=None):
+    """
+    Determine if a file is an important implementation file worth prioritizing
+    
+    Args:
+        file_path: Path to the file
+        file_type: Optional file type if already determined
+        
+    Returns:
+        Boolean indicating if the file is a critical implementation file
+    """
+    if not file_path:
+        return False
+        
+    if file_type is None:
+        file_type = get_file_type(file_path)
+    
+    # Check if it's a critical file type
+    if file_type not in ['python', 'cpp', 'cuda', 'header', 'java', 'rust', 'go']:
+        return False
+    
+    # Check for critical file path patterns
+    high_value_patterns = [
+        '/model/', '/engine/', '/core/', '/runtime/', '/optimizer/', '/kernel/',
+        '/src/', '/lib/', '/impl/', '/ops/', '/csrc/', '/module/', '/layer/'
+    ]
+    
+    return any(pattern in file_path.lower() for pattern in high_value_patterns)
+
+def should_include_large_file(file_path, file_size, max_file_size, test_mode=False):
+    """
+    Check if a large file should be included based on importance
+    
+    Args:
+        file_path: Path to the file
+        file_size: Size of the file in bytes
+        max_file_size: Maximum file size threshold
+        test_mode: Whether to log additional info in test mode
+        
+    Returns:
+        Boolean indicating if the file should be included despite size
+    """
+    file_type = get_file_type(file_path)
+    
+    # Check if it's an important implementation file and not excessively large
+    is_important = is_important_implementation_file(file_path, file_type)
+    size_acceptable = file_size < max_file_size * 2  # Allow up to 2x the max size
+    
+    if is_important and size_acceptable:
+        if test_mode:
+            logger.info(f"Including large important implementation file: {file_path} ({file_size} bytes)")
+        return True
+    
+    return False
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Collect and process GitHub repositories with educational content")
     parser.add_argument("--token", help="GitHub API token")
@@ -2959,6 +3492,8 @@ if __name__ == "__main__":
                         help=f"Maximum file size in bytes to collect (default: {MAX_FILE_SIZE})")
     parser.add_argument("--focus", choices=["tutorials", "documentation", "code", "all"], default="all",
                         help="Focus collection on specific content types")
+    parser.add_argument("--recursive-depth", type=int, default=3,
+                        help="Maximum depth for recursive directory exploration (default: 3)")
     
     args = parser.parse_args()
     
@@ -2972,7 +3507,7 @@ if __name__ == "__main__":
         elif args.focus == "code":
             VALUABLE_DIRECTORIES.extend(["src", "lib", "source"])
     
-    # Call the main collection function with custom max file size
+    # Call the main collection function with parsed arguments
     collect_github_repos(
         github_token=args.token,
         max_repos=args.max_repos,
@@ -2980,6 +3515,7 @@ if __name__ == "__main__":
         single_repo=args.test,
         clean=args.clean,
         bypass_proxy=args.bypass_proxy,
-        max_file_size=args.max_file_size
+        max_file_size=args.max_file_size,
+        recursive_depth=args.recursive_depth
     )
     
