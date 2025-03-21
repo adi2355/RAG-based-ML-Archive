@@ -1,10 +1,6 @@
-# Analysis of Your RAG-Based Data Archive System
 
-After reviewing your codebase, I've analyzed how data flows through your Retrieval-Augmented Generation (RAG) system. This is a sophisticated system that collects, processes, and makes searchable content from multiple sources.
+# System Architecture Overview
 
-## System Architecture Overview
-
-Your RAG system consists of several interconnected components:
 
 ![System Architecture]
 
